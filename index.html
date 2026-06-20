@@ -3,6 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+  const firebaseDomains = [
+    "graduation-abd07.web.app",
+    "graduation-abd07.firebaseapp.com"
+  ];
+
+  if (firebaseDomains.includes(window.location.hostname)) {
+    const canonicalUrl = new URL(window.location.href);
+    canonicalUrl.protocol = "https:";
+    canonicalUrl.hostname = "getflorilege.com";
+    canonicalUrl.port = "";
+
+    window.location.replace(canonicalUrl.toString());
+  }
+</script>
 <title>Florilège — a graduation book gathered from everyone who loves them</title>
 <meta name="description" content="Make a little interactive book of messages, photos and voice notes, collected from friends and pressed around the flower your graduate loves.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
