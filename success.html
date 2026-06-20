@@ -18,6 +18,11 @@
 
     window.location.replace(canonicalUrl.toString());
   }
+
+  const bookId = new URLSearchParams(window.location.search).get("b");
+  if (bookId && window.location.pathname.replace(/\/+$/, "") === "/success") {
+    window.location.replace(`/s/${encodeURIComponent(bookId)}`);
+  }
 </script>
 <title>Your Florilège book</title>
 <meta name="robots" content="noindex">

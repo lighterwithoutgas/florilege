@@ -1,83 +1,85 @@
-# Keepsake Book — a template anyone can use
+# Florilège 🌸
 
-Make a small interactive book of messages for someone, themed around a
-flower they love. Friends add "pages" from anywhere; the recipient opens
-the finished book with a private key. One deployment can host **many**
-books — each with its own ID, theme, messages, and key.
+A graduation keepsake-book web app. Someone makes a little interactive book for a
+graduate, friends add pages (a message, a photo, a voice note), and the graduate
+opens it with a secret key — the whole class, pressed into one book.
 
-## How access works (the secure part)
-
-- **Friends** sign in anonymously and may only *add* a page to a book.
-- **Recipient** has a **key**. They type it, a Cloud Function (`redeemKey`)
-  verifies it server-side and mints a **token scoped to that one book**.
-  The key alone unlocks nothing — only the function can issue the token —
-  so a friend who has the submission link still cannot read the book.
-- **You (owner)** sign in with Google. You manage your own books.
-- Page deletion runs through the `deletePage` function so the photo/voice
-  files are removed too.
-
-Keys are stored only as salted hashes, in a doc no client can read.
+**Live:** https://getflorilege.com
 
 ---
 
-## What's included
+## How it works
 
-All pages are built and wired to `?b=BOOKID`:
+1. **Make a book** (`/create`) — pick the recipient's name, faculty/major theme, a
+   flower (or major emblem), colours, a dedication, a "then & now" photo, and a
+   recipient key. Pay €5 (Stripe Checkout) and the book is created.
+2. **Friends add pages** (`/a/<id>`) — one shared link; each friend presses in their
+   own page (text + optional photo + optional voice note).
+3. **The graduate opens it** (`/b/<id>`) — enters the secret key and flips through
+   the book: cover, dedication, botanical plate, then & now, every friend's page.
+4. **Manage** (`/m/<id>`) — with an optional management key, the owner can remove pages.
 
-- **`create.html`** — owner wizard: pick flower + colour + name + dedication, set the recipient's key, get three links.
-- **`index.html`** — friends' submission page (themed from the book; English).
-- **`book.html`** — the recipient's book: enter the key → page-turn book themed to their flower.
-- **`admin.html`** — owner manage page: Google sign-in, view and remove pages.
+A short example with no key: **`/book?demo=1`**.
 
-Recipient books are English. The friends' page uses the owner's custom
-invitation text when given, otherwise a sensible default line.
+## Routes
 
----
+| Path | Page |
+|------|------|
+| `/` | Landing |
+| `/create` | Make a book |
+| `/s/<id>` | Success / share links |
+| `/a/<id>` | Friends add a page |
+| `/b/<id>` | The book (key-gated) |
+| `/m/<id>` | Manage / remove pages (management key) |
 
-## Deploy (one-time)
+## Stack
 
-> Requires the **Blaze** plan (Cloud Functions). At this scale it's effectively free.
+- **Firebase Hosting** (static, clean URLs + rewrites for the short paths)
+- **Cloud Functions (gen 2, Node)** — `startCheckout`, `stripeWebhook`, `redeemKey`, `deletePage`
+- **Cloud Firestore** + **Cloud Storage** (rules-enforced)
+- **Firebase Auth** — anonymous (friends/owner) + custom tokens for the `viewer`/`caretaker` roles
+- **Stripe Checkout** (hosted) with a webhook that activates the paid book
+- Vanilla HTML / CSS / JS (no framework)
 
-1. **Firebase project** → create or pick one; upgrade to Blaze.
-2. **Authentication → Sign-in method:** enable **Google** *and* **Anonymous**.
-3. **Firestore Database → Create**, and **Storage → Get started**.
-4. Paste your web config into `assets/firebase-init.js` (the `firebaseConfig` block).
-5. Install function deps:
-   ```bash
-   cd functions && npm install && cd ..
-   ```
-6. Deploy everything:
-   ```bash
-   firebase login
-   firebase use --add
-   firebase deploy
-   ```
-   This publishes hosting, the three functions, and the Firestore + Storage rules.
+## Security model
 
-7. Open `https://YOURSITE.web.app/create.html`, sign in with Google, and make a book.
+- Recipient/management keys are **hashed server-side** (scrypt + salt) — never stored or sent in plaintext.
+- `redeemKey` verifies a key server-side and mints a **custom token** scoped to one book + role; the Firestore rules check those claims.
+- A book is unusable until **paid** (`status: "active"`); friends can only post to active books; brute-force is throttled.
+- All real secrets live in **Google Secret Manager / `functions/.env`** — never in this repo.
 
-### Notes
-- Functions default to the `us-central1` region. If you deploy elsewhere,
-  set the region in `assets/firebase-init.js` (`getFunctions(app, 'your-region')`).
-- The owner's Google account is automatically the manager of the books they create.
-- `flowers.js` holds the flower library — add more by writing one function and
-  registering it in the `FLOWERS` map.
+## Setup
 
-### Files
+```bash
+cd functions && npm install
 ```
-create.html            owner wizard (build a book)
-index.html             friends' submission page  (?b=BOOKID)
-book.html              recipient's book          (?b=BOOKID, keyed)
-admin.html             owner manage page         (?b=BOOKID, Google)
-assets/
-  flowers.js           themeable flower SVG library
-  theme.js             petals, music, accent, specimen renderer
-  theme.css            shared styling
-  firebase-init.js     ← paste config; client helpers
-functions/
-  index.js             createBook, redeemKey, deletePage
-  package.json
-firestore.rules        multi-tenant DB security
-storage.rules          multi-tenant file security
-firebase.json          hosting + functions + rules
+
+Create `functions/.env` from the example and set your owner code:
+
+```bash
+cp functions/.env.example functions/.env   # then edit OWNER_CODE
 ```
+
+Set the secrets (only needed for the features you enable):
+
+```bash
+firebase functions:secrets:set STRIPE_SECRET          # sk_live_… / sk_test_…
+firebase functions:secrets:set STRIPE_WEBHOOK_SECRET  # whsec_… (from the Stripe webhook)
+firebase functions:secrets:set GMAIL_USER             # gmail address (for buyer emails)
+firebase functions:secrets:set GMAIL_APP_PASSWORD     # 16-char Gmail app password
+```
+
+Feature flags in `functions/index.js`:
+
+- `PAYMENTS_ENABLED` — `false` creates books for free (dev); `true` requires Stripe payment.
+- `EMAIL_ENABLED` — emails buyers their links after payment (needs the Gmail secrets).
+- `OWNER_CODE` (from `.env`) — visit `/create?owner=<code>` to create books for free.
+
+Deploy:
+
+```bash
+firebase deploy
+```
+
+> Note: this repo intentionally contains **no secrets**. `functions/.env` and
+> `node_modules/` are gitignored; copy `.env.example` and add your own values.
