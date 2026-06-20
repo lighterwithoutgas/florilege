@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/">
 <script>
   const firebaseDomains = [
     "graduation-abd07.web.app",
@@ -97,6 +98,9 @@ async function keepTrying() {
 
 function showLinks(cfg) {
   const base = location.origin;
+  const friendUrl = `${base}/a/${bookId}`;
+  const bookUrl = `${base}/b/${bookId}`;
+  const adminUrl = `${base}/m/${bookId}`;
   let key = '';
   try { key = localStorage.getItem('keepsake_key_'+bookId) || ''; } catch(_){}
 
@@ -109,9 +113,9 @@ function showLinks(cfg) {
   linksEl.hidden = false;
   linksEl.innerHTML = `
     <div style="background:var(--blush);border:1px solid var(--carnation);border-radius:6px;padding:.75rem .9rem;margin:0 0 1rem;font-family:var(--serif);font-style:italic;color:var(--carnation-2);text-align:center;">📌 Save this page — it's the only copy of your links and key. Bookmark it or screenshot it now.</div>
-    <div class="l"><button class="copy" data-c="${base}/add?b=${bookId}">copy</button><b>Share with friends (to add pages)</b>${base}/add?b=${bookId}</div>
-    <div class="l"><button class="copy" data-c="${base}/book?b=${bookId}">copy</button><b>${keyLine}</b>${base}/book?b=${bookId}</div>
-    ${cfg.hasManageKey ? `<div class="l"><button class="copy" data-c="${base}/admin?b=${bookId}">copy</button><b>For you — remove pages (uses your management key)</b>${base}/admin?b=${bookId}</div>` : ''}`;
+    <div class="l"><button class="copy" data-c="${friendUrl}">copy</button><b>Share with friends (to add pages)</b>${friendUrl}</div>
+    <div class="l"><button class="copy" data-c="${bookUrl}">copy</button><b>${keyLine}</b>${bookUrl}</div>
+    ${cfg.hasManageKey ? `<div class="l"><button class="copy" data-c="${adminUrl}">copy</button><b>For you — remove pages (uses your management key)</b>${adminUrl}</div>` : ''}`;
 
   linksEl.querySelectorAll('.copy').forEach(b=>{
     b.addEventListener('click', ()=>{

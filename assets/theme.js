@@ -23,7 +23,16 @@ export function shade(hex, amt) {
 }
 
 export function getBookId() {
-  return new URLSearchParams(location.search).get('b');
+  const queryId = new URLSearchParams(location.search).get('b');
+  if (queryId) return queryId;
+
+  const parts = location.pathname.split('/').filter(Boolean);
+  const shortPrefixes = new Set(['a', 'b', 'm', 's']);
+  if (parts.length >= 2 && shortPrefixes.has(parts[0])) {
+    return decodeURIComponent(parts[1]);
+  }
+
+  return null;
 }
 
 export function dirOf(text = '') {

@@ -9,6 +9,12 @@
       "functions/**",
       "README.md",
       "*.rules"
+    ],
+    "rewrites": [
+      { "source": "/a/**", "destination": "/add.html" },
+      { "source": "/b/**", "destination": "/book.html" },
+      { "source": "/m/**", "destination": "/admin.html" },
+      { "source": "/s/**", "destination": "/success.html" }
     ]
   },
   "functions": {

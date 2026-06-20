@@ -62,7 +62,7 @@ const STRIPE_SECRET = defineSecret("STRIPE_SECRET");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
 
 /* fallback site origin used if the client doesn't send a clean one */
-const FALLBACK_ORIGIN = "https://graduation-abd07.web.app";
+const FALLBACK_ORIGIN = "https://getflorilege.com";
 
 /* ---------- key hashing (no external deps) ---------- */
 function hashKey(key) {
@@ -104,8 +104,8 @@ async function sendLinksEmail(to, bookId) {
   const snap = await db.doc(`books/${bookId}`).get();
   const name = (snap.exists && snap.data().recipientName) || "your graduate";
   const base = FALLBACK_ORIGIN;
-  const friends = `${base}/add?b=${bookId}`;
-  const recipient = `${base}/book?b=${bookId}`;
+  const friends = `${base}/a/${bookId}`;
+  const recipient = `${base}/b/${bookId}`;
   const nodemailer = require("nodemailer");
   const tx = nodemailer.createTransport({
     service: "gmail",
@@ -198,7 +198,7 @@ exports.startCheckout = onCall(PAYMENTS_ENABLED ? { secrets: [STRIPE_SECRET] } :
     batch.set(db.doc(`books/${bookId}/private/content`), privateContent);
     batch.set(db.doc(`books/${bookId}/private/keys`), keys);
     await batch.commit();
-    return { url: `${base}/success?b=${bookId}`, bookId, free: true };
+    return { url: `${base}/s/${bookId}`, bookId, free: true };
   }
 
   // ----- PAID MODE: pending book + Stripe Checkout -----
@@ -220,7 +220,7 @@ exports.startCheckout = onCall(PAYMENTS_ENABLED ? { secrets: [STRIPE_SECRET] } :
       },
     }],
     metadata: { bookId },
-    success_url: `${base}/success?b=${bookId}`,
+    success_url: `${base}/s/${bookId}`,
     cancel_url: `${base}/create`,
   });
 
