@@ -1,0 +1,70 @@
+rules_version = '2';
+
+// Keepsake Book — multi-tenant Firestore rules
+//
+// Roles:
+//  • Friends   → anonymous auth; may CREATE a message under a book.
+//  • Recipient → custom token {bookId, role:'viewer'}    (from redeemKey)
+//  • Caretaker → custom token {bookId, role:'caretaker'} (optional)
+//  • Owner     → the signed-in creator (books/{id}.ownerUid)
+// Deletes and file removal happen via the deletePage Cloud Function.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function claimFor(bookId) {
+      return request.auth.token.bookId == bookId;
+    }
+    function isViewer(bookId) {
+      return signedIn() && claimFor(bookId) &&
+             (request.auth.token.role == 'viewer' || request.auth.token.role == 'caretaker');
+    }
+    function isOwner(bookId) {
+      return signedIn() &&
+             request.auth.uid == get(/databases/$(database)/documents/books/$(bookId)).data.ownerUid;
+    }
+    function bookIsActive(bookId) {
+      return exists(/databases/$(database)/documents/books/$(bookId)) &&
+             get(/databases/$(database)/documents/books/$(bookId)).data.status == 'active';
+    }
+
+    match /books/{bookId} {
+      // public theme doc: any signed-in user (incl. anonymous friends) may read,
+      // so the submission page can render the right flower/name. No listing.
+      allow get: if signedIn();
+      allow list: if false;
+      // books are created only by the startCheckout Cloud Function (Admin SDK).
+      allow create: if false;
+      allow update: if isOwner(bookId);
+      allow delete: if isOwner(bookId);
+
+      // private recipient-facing content (dedication, closing, then-photo):
+      // only the recipient/caretaker/owner — never the contributing friends.
+      match /private/content {
+        allow get: if isViewer(bookId) || isOwner(bookId);
+        allow write: if isOwner(bookId);
+      }
+      // hashed keys: no client may ever read or write these (Functions only).
+      match /private/keys {
+        allow read, write: if false;
+      }
+
+      // friends' pages
+      match /messages/{msgId} {
+        allow create: if signedIn()
+          && bookIsActive(bookId)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 80
+          && request.resource.data.message is string
+          && request.resource.data.message.size() <= 2000;
+        allow read: if isViewer(bookId) || isOwner(bookId);
+        allow update: if false;
+        // deletion goes through the deletePage Cloud Function (so files go too)
+        allow delete: if false;
+      }
+    }
+  }
+}

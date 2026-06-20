@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add your page</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  .submit-wrap { width: min(640px, 100%); }
+  .submit-head { text-align:center; margin-bottom:1.8rem; }
+  .submit-head .flower { width:96px; margin:0 auto .4rem; }
+  .submit-head h1 { font-family:var(--serif); font-weight:600; font-size:clamp(1.7rem,5vw,2.5rem); margin:.2rem 0; }
+  .submit-head .intro { font-family:var(--body); color:var(--ink-soft); max-width:50ch; margin:.6rem auto 0; line-height:1.7; }
+  .form-card { padding:clamp(1.4rem,4vw,2.4rem); }
+  .media-row { display:flex; gap:1rem; flex-wrap:wrap; }
+  .media-box { flex:1 1 220px; border:1px dashed var(--line); border-radius:4px; padding:1rem; background:rgba(255,255,255,.4); }
+  .media-box h3 { font-family:var(--serif); font-style:italic; color:var(--leaf-deep); margin:.1rem 0 .2rem; font-size:1.05rem; }
+  .media-box .hint { font-size:.84rem; color:var(--ink-soft); margin-bottom:.7rem; }
+  .photo-preview { margin-top:.7rem; max-width:160px; border:1px solid #eee; padding:5px; background:#fff; }
+  .photo-preview img { display:block; width:100%; }
+  .rec-row { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+  .rec-dot { width:10px;height:10px;border-radius:50%;background:var(--carnation); display:inline-block; }
+  .rec-row.recording .rec-dot { animation:pulse 1s infinite; } @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .rec-time { font-family:var(--serif); color:var(--ink-soft); }
+  audio { margin-top:.6rem; width:100%; }
+  .submit-foot { text-align:center; margin-top:1.6rem; }
+  .err { color:var(--carnation-2); font-family:var(--serif); font-style:italic; min-height:1.2em; text-align:center; margin-top:.6rem; }
+  .visually-hidden { position:absolute; width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0); }
+  .done { text-align:center; }
+  .done .flower { width:110px; margin:0 auto 1rem; }
+  .done h2 { font-family:var(--serif); font-weight:600; font-size:2rem; color:var(--ink); }
+  .done p { font-family:var(--body); color:var(--ink-soft); max-width:42ch; margin:.6rem auto 1.4rem; line-height:1.7; }
+  .loading { text-align:center; font-family:var(--serif); font-style:italic; color:var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="submit-wrap" id="app"><p class="loading">Opening…</p></div>
+</div>
+
+<!-- preview popup -->
+<div class="overlay" id="overlay" role="dialog" aria-modal="true">
+  <div class="sheet modal">
+    <div class="modal-head"><h2>This is your page</h2><p>It will be pressed into the book just like this.</p></div>
+    <div id="pv-body"></div>
+    <div class="modal-actions">
+      <button class="btn btn--ghost" id="editBtn" type="button">Go back and edit</button>
+      <button class="btn btn--gold" id="confirmBtn" type="button">Add it to the book</button>
+    </div>
+  </div>
+</div>
+<!-- delivered popup -->
+<div class="overlay" id="doneOverlay" role="dialog" aria-modal="true">
+  <div class="sheet modal">
+    <div class="done" style="padding:2rem 1.4rem 2.2rem;">
+      <div class="flower" id="doneFlower"></div>
+      <h2>Your page is in the book</h2>
+      <p id="doneMsg">Thank you. Your page will be waiting for them.</p>
+      <button class="btn" id="againBtn" type="button">Leave another page</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { getBookId, applyAccent, startPetals, specimenPageHTML, wireVoice } from './assets/theme.js';
+import { flowerSVG } from './assets/flowers.js';
+import { getBookConfig, addSubmission, ensureAnon } from './assets/firebase-init.js';
+
+const bookId = getBookId();
+const app = document.getElementById('app');
+let cfg = null, photoFile = null, photoURLLocal = null, voiceBlob = null, voiceURLLocal = null;
+let mediaRec = null, chunks = [], recTimer = null, recStart = 0;
+
+if (!bookId) { app.innerHTML = `<p class="loading">This link is missing its book id.</p>`; }
+else init();
+
+async function init() {
+  startPetals(12);
+  try { await ensureAnon(); } catch(e){}   // must finish before reading (rules require auth)
+  try { cfg = await getBookConfig(bookId); } catch(e) { cfg = null; }
+  if (!cfg) { app.innerHTML = `<p class="loading">We couldn't find this book.</p>`; return; }
+  applyAccent(cfg.flowerColor);
+  const name = cfg.recipientName || 'them';
+  const intro = cfg.intro && cfg.intro.trim()
+    ? cfg.intro
+    : `${name} is graduating, and their friends are scattered far and wide. Leave a page — your words pressed into their book like a flower kept between the leaves. Only ${name} will read it.`;
+  document.getElementById('doneFlower').innerHTML = flowerSVG(cfg.flower, { size:110, color:cfg.flowerColor });
+  document.getElementById('doneMsg').textContent = `Thank you. Your page will be waiting for ${name}.`;
+  app.innerHTML = `
+    <div class="submit-head">
+      <div class="flower">${flowerSVG(cfg.flower, { size:96, color:cfg.flowerColor })}</div>
+      <h1>Add your page to ${escapeHtml(name)}'s book</h1>
+      <p class="intro">${escapeHtml(intro)}</p>
+    </div>
+    <div class="sheet form-card">
+      <div class="field"><label for="f-name">Your name</label>
+        <input class="input" id="f-name" maxlength="40" placeholder="e.g. Sara"></div>
+      <div class="field"><label for="f-msg">Your message</label>
+        <textarea class="input" id="f-msg" maxlength="1200" placeholder="Write from the heart…"></textarea></div>
+      <div class="media-row">
+        <div class="media-box"><h3>A photo</h3><div class="hint">Optional.</div>
+          <button class="btn btn--ghost" id="photoBtn" type="button">Choose a photo</button>
+          <input type="file" id="f-photo" accept="image/*" class="visually-hidden">
+          <div class="photo-preview" id="photoPrev" hidden><img id="photoImg" alt=""></div></div>
+        <div class="media-box"><h3>A voice note</h3><div class="hint">Optional — let them hear you.</div>
+          <div class="rec-row" id="recRow"><button class="btn btn--ghost" id="recBtn" type="button">Record</button>
+            <span class="rec-dot" hidden id="recDot"></span><span class="rec-time" id="recTime" hidden>0:00</span></div>
+          <audio id="voicePlayer" controls hidden></audio>
+          <div id="voiceActions" hidden style="margin-top:.5rem;display:flex;gap:.6rem;">
+            <button class="ctl" id="recRedo" type="button">Record again</button>
+            <button class="ctl" id="recDel" type="button">Remove</button></div></div>
+      </div>
+      <div class="err" id="err"></div>
+      <div class="submit-foot"><button class="btn btn--gold" id="previewBtn" type="button">Preview my page</button></div>
+    </div>`;
+  wireForm();
+}
+function escapeHtml(s=''){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function wireForm() {
+  const photoInput = document.getElementById('f-photo');
+  document.getElementById('photoBtn').addEventListener('click', ()=>photoInput.click());
+  photoInput.addEventListener('change', ()=>{
+    const f = photoInput.files[0]; if (!f) return; photoFile = f;
+    if (photoURLLocal) URL.revokeObjectURL(photoURLLocal); photoURLLocal = URL.createObjectURL(f);
+    document.getElementById('photoImg').src = photoURLLocal; document.getElementById('photoPrev').hidden = false;
+    document.getElementById('photoBtn').textContent = 'Change photo';
+  });
+  const recBtn=document.getElementById('recBtn'), recRow=document.getElementById('recRow'),
+        recDot=document.getElementById('recDot'), recTime=document.getElementById('recTime'),
+        player=document.getElementById('voicePlayer'), voiceActions=document.getElementById('voiceActions');
+  function pickMime(){
+    if (!('MediaRecorder' in window) || !MediaRecorder.isTypeSupported) return '';
+    for (const t of ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg']) {
+      if (MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return '';
+  }
+  recBtn.addEventListener('click', async ()=>{
+    if (mediaRec && mediaRec.state==='recording'){ stopRec(); return; }
+    const err = document.getElementById('err');
+    if (!('MediaRecorder' in window) || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      err.textContent = "Voice recording isn't supported in this browser. Try Chrome, or skip the voice note."; return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true}); chunks=[];
+      const mime = pickMime();
+      mediaRec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      mediaRec.ondataavailable = e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+      mediaRec.onstop = ()=>{ voiceBlob=new Blob(chunks,{type: (mediaRec && mediaRec.mimeType) || mime || 'audio/webm'});
+        if(voiceURLLocal)URL.revokeObjectURL(voiceURLLocal); voiceURLLocal=URL.createObjectURL(voiceBlob);
+        player.src=voiceURLLocal; player.hidden=false; voiceActions.hidden=false; stream.getTracks().forEach(t=>t.stop()); };
+      mediaRec.start(); recStart=Date.now(); recRow.classList.add('recording'); recDot.hidden=false; recTime.hidden=false; recBtn.textContent='Stop';
+      err.textContent='';
+      recTimer=setInterval(()=>{ const s=Math.floor((Date.now()-recStart)/1000);
+        recTime.textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; if(s>=120) stopRec(); },250);
+    } catch(e){
+      const n = e && e.name;
+      if (n==='NotAllowedError' || n==='SecurityError') err.textContent = "Microphone blocked — allow mic access in your browser, then try again.";
+      else if (n==='NotFoundError' || n==='OverconstrainedError') err.textContent = "No microphone found on this device.";
+      else err.textContent = "Couldn't record" + (e && e.message ? `: ${e.message}` : ".");
+    }
+  });
+  function stopRec(){ if(mediaRec&&mediaRec.state==='recording')mediaRec.stop(); clearInterval(recTimer);
+    recRow.classList.remove('recording'); recDot.hidden=true; recBtn.textContent='Record'; }
+  document.getElementById('recRedo').addEventListener('click', ()=>{ clearVoice(); recBtn.click(); });
+  document.getElementById('recDel').addEventListener('click', clearVoice);
+  function clearVoice(){ voiceBlob=null; if(voiceURLLocal){URL.revokeObjectURL(voiceURLLocal);voiceURLLocal=null;}
+    player.hidden=true; player.removeAttribute('src'); voiceActions.hidden=true; recTime.hidden=true; recTime.textContent='0:00'; }
+
+  document.getElementById('previewBtn').addEventListener('click', ()=>{
+    const name=document.getElementById('f-name').value.trim(), message=document.getElementById('f-msg').value.trim(), err=document.getElementById('err');
+    if(!name){err.textContent='Please add your name first.';return;}
+    if(!message){err.textContent='Please write a message first.';return;}
+    err.textContent='';
+    document.getElementById('pv-body').innerHTML = specimenPageHTML({ name, message, photoSrc:photoURLLocal, voiceSrc:voiceURLLocal });
+    wireVoice(document.getElementById('pv-body'));
+    document.getElementById('overlay').classList.add('show');
+  });
+  document.getElementById('editBtn').addEventListener('click', ()=>document.getElementById('overlay').classList.remove('show'));
+  const confirmBtn=document.getElementById('confirmBtn');
+  confirmBtn.addEventListener('click', async ()=>{
+    confirmBtn.disabled=true; confirmBtn.textContent='Pressing your page in…';
+    try {
+      await addSubmission(bookId, { name:document.getElementById('f-name').value.trim(), message:document.getElementById('f-msg').value.trim(), lang:'en' }, photoFile, voiceBlob);
+      document.getElementById('overlay').classList.remove('show');
+      document.getElementById('doneOverlay').classList.add('show');
+    } catch(e){
+      const code=(e&&e.code)?e.code:'';
+      document.getElementById('err').textContent = code==='storage/unauthorized'
+        ? 'Upload was blocked — check the Storage rules are deployed.' : ('Could not send'+(code?' ('+code+')':'')+'.');
+      document.getElementById('overlay').classList.remove('show');
+    } finally { confirmBtn.disabled=false; confirmBtn.textContent='Add it to the book'; }
+  });
+  document.getElementById('againBtn').addEventListener('click', ()=>{
+    document.getElementById('doneOverlay').classList.remove('show');
+    document.getElementById('f-name').value=''; document.getElementById('f-msg').value='';
+    photoFile=null; if(photoURLLocal)URL.revokeObjectURL(photoURLLocal); photoURLLocal=null;
+    document.getElementById('photoPrev').hidden=true; document.getElementById('photoBtn').textContent='Choose a photo';
+    clearVoice(); window.scrollTo({top:0,behavior:'smooth'});
+  });
+}
+</script>
+</body>
+</html>

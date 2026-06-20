@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Florilège book</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  .wrap { width:min(720px,100%); text-align:center; }
+  .flower { width:96px; margin:0 auto .4rem; }
+  h1 { font-family:var(--serif); font-weight:600; font-size:2rem; margin:.2rem 0; }
+  p.sub { font-family:var(--body); color:var(--ink-soft); }
+  .links { font-family:var(--body); text-align:start; max-width:640px; margin:1.2rem auto; }
+  .links .l { background:#fffdf7; border:1px solid var(--line); border-radius:6px; padding:.7rem .9rem; margin:.6rem 0; word-break:break-all; }
+  .links .l b { font-family:var(--serif); color:var(--leaf-deep); display:block; font-style:italic; margin-bottom:.2rem; }
+  .links .l .copy { float:right; font-family:var(--serif); font-size:.8rem; cursor:pointer; color:var(--gold-deep); border:none; background:none; }
+  .keychip { display:inline-block; background:var(--blush); border-radius:6px; padding:.1em .5em; font-family:var(--serif); }
+  .err { color:var(--carnation-2); font-family:var(--serif); font-style:italic; }
+  .spin { font-family:var(--serif); font-style:italic; color:var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="wrap">
+    <div class="flower" id="flower"></div>
+    <h1 id="title">Confirming your payment…</h1>
+    <p class="sub" id="sub"><span class="spin">Just a moment while we finish your book.</span></p>
+    <div class="sheet card links" id="links" hidden></div>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<script type="module">
+import { getBookId, startPetals } from './assets/theme.js';
+import { flowerSVG } from './assets/flowers.js';
+import { getBookConfig, ensureAnon } from './assets/firebase-init.js';
+
+startPetals(8);
+document.getElementById('flower').innerHTML = flowerSVG('tulip', { size:96 });
+
+const bookId = getBookId();
+const titleEl = document.getElementById('title');
+const subEl   = document.getElementById('sub');
+const linksEl = document.getElementById('links');
+const errEl   = document.getElementById('err');
+
+if (!bookId) {
+  titleEl.textContent = 'Something went wrong';
+  subEl.textContent = 'This link is missing its book id.';
+} else {
+  run();
+}
+
+async function run() {
+  try { await ensureAnon(); } catch(e){}
+  // the book is created the instant you pay, but Stripe's confirmation
+  // (the webhook) can take a few seconds — poll until it's active.
+  const deadline = Date.now() + 40000;
+  let cfg = null;
+  while (Date.now() < deadline) {
+    try { cfg = await getBookConfig(bookId); } catch(e){ cfg = null; }
+    if (cfg && cfg.status === 'active') return showLinks(cfg);
+    await sleep(2000);
+  }
+  // still not active — payment may still be settling
+  titleEl.textContent = 'Almost there…';
+  subEl.innerHTML = "Your payment is still being confirmed. This page will keep checking — " +
+    "or refresh in a minute. If it doesn't appear, your card was not charged.";
+  keepTrying();
+}
+
+async function keepTrying() {
+  while (true) {
+    await sleep(4000);
+    let cfg = null;
+    try { cfg = await getBookConfig(bookId); } catch(e){}
+    if (cfg && cfg.status === 'active') return showLinks(cfg);
+  }
+}
+
+function showLinks(cfg) {
+  const base = location.origin;
+  let key = '';
+  try { key = localStorage.getItem('keepsake_key_'+bookId) || ''; } catch(_){}
+
+  titleEl.textContent = `${cfg.recipientName}'s book is ready 🎉`;
+  subEl.textContent = 'Two links — share each with the right people.';
+  const keyLine = key
+    ? `For the recipient — give them their key: <span class="keychip">${escapeHtml(key)}</span>`
+    : 'For the recipient — plus the key you chose';
+
+  linksEl.hidden = false;
+  linksEl.innerHTML = `
+    <div style="background:var(--blush);border:1px solid var(--carnation);border-radius:6px;padding:.75rem .9rem;margin:0 0 1rem;font-family:var(--serif);font-style:italic;color:var(--carnation-2);text-align:center;">📌 Save this page — it's the only copy of your links and key. Bookmark it or screenshot it now.</div>
+    <div class="l"><button class="copy" data-c="${base}/add?b=${bookId}">copy</button><b>Share with friends (to add pages)</b>${base}/add?b=${bookId}</div>
+    <div class="l"><button class="copy" data-c="${base}/book?b=${bookId}">copy</button><b>${keyLine}</b>${base}/book?b=${bookId}</div>
+    ${cfg.hasManageKey ? `<div class="l"><button class="copy" data-c="${base}/admin?b=${bookId}">copy</button><b>For you — remove pages (uses your management key)</b>${base}/admin?b=${bookId}</div>` : ''}`;
+
+  linksEl.querySelectorAll('.copy').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      navigator.clipboard.writeText(b.dataset.c).then(()=>{ b.textContent='copied'; setTimeout(()=>b.textContent='copy',1500); });
+    });
+  });
+  // keep the key in localStorage — it's hashed on the server and cannot be recovered,
+  // so this is the only place the creator can look it up again.
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+</script>
+</body>
+</html>

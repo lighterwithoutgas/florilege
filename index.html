@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Florilège — a graduation book gathered from everyone who loves them</title>
+<meta name="description" content="Make a little interactive book of messages, photos and voice notes, collected from friends and pressed around the flower your graduate loves.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#FBF8F1">
+<!-- social share -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Florilège — the whole class, in one little book">
+<meta property="og:description" content="Gather messages, photos and voice notes from everyone who loves your graduate — pressed around the flower they adore.">
+<meta property="og:image" content="assets/favicon.svg">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  /* ---------- layout ---------- */
+  .lp { position:relative; z-index:3; }
+  .container { width:min(1120px, 92%); margin:0 auto; }
+  section { padding:clamp(3.5rem, 8vw, 6rem) 0; }
+
+  /* ---------- top bar ---------- */
+  .topbar { position:sticky; top:0; z-index:40; backdrop-filter:blur(8px);
+    background:rgba(251,248,241,.72); border-bottom:1px solid rgba(216,205,182,.6); }
+  .topbar .container { display:flex; align-items:center; justify-content:space-between; padding:.7rem 0; }
+  .brand { display:flex; align-items:center; gap:.55rem; text-decoration:none; color:var(--ink); }
+  .brand .mark { width:34px; height:34px; }
+  .brand .name { font-family:var(--serif); font-weight:600; font-size:1.5rem; letter-spacing:.01em; }
+  .brand .name b { color:var(--carnation-2); font-weight:600; }
+  .navlinks { display:flex; align-items:center; gap:1.4rem; }
+  .navlinks a.txt { font-family:var(--serif); font-size:1.05rem; color:var(--ink-soft); text-decoration:none; }
+  .navlinks a.txt:hover { color:var(--carnation); }
+  .btn.sm { padding:.5em 1.1em; font-size:.98rem; }
+  @media (max-width:640px){ .navlinks a.txt{ display:none; } }
+
+  /* ---------- hero ---------- */
+  .hero .container { display:grid; grid-template-columns:1.05fr .95fr; gap:clamp(2rem,5vw,4rem); align-items:center; }
+  @media (max-width:880px){ .hero .container{ grid-template-columns:1fr; text-align:center; } .hero .art{ order:-1; } }
+  .hero h1 { font-family:var(--serif); font-weight:600; font-size:clamp(2.6rem,6.5vw,4.4rem); line-height:1.02; margin:.4rem 0 .2rem; }
+  .hero h1 em { font-style:italic; color:var(--carnation-2); }
+  .hero .lead { font-family:var(--body); font-size:clamp(1.05rem,2.4vw,1.3rem); color:var(--ink-soft); line-height:1.8; max-width:48ch; margin:1rem 0 1.8rem; }
+  @media (max-width:880px){ .hero .lead{ margin-left:auto; margin-right:auto; } }
+  .cta-row { display:flex; gap:1rem; flex-wrap:wrap; }
+  @media (max-width:880px){ .cta-row{ justify-content:center; } }
+  .reassure { font-family:var(--serif); font-style:italic; color:var(--ink-soft); margin-top:1rem; font-size:.98rem; }
+  .reassure::before { content:"❦"; color:var(--carnation); margin-right:.4rem; }
+
+  /* hero cover card */
+  .art { display:flex; justify-content:center; }
+  .cover-card { width:min(360px, 84vw); aspect-ratio:3/4; border-radius:8px; border:1px solid var(--paper-deep);
+    background:radial-gradient(120% 80% at 50% 28%, #fffdf8, var(--paper) 70%); box-shadow:var(--shadow-page);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+    padding:2rem 1.4rem; position:relative; transform:rotate(-1.4deg); transition:transform .5s ease; }
+  .cover-card:hover { transform:rotate(0deg) translateY(-4px); }
+  .cover-card::after { content:""; position:absolute; inset:14px; border:1px solid rgba(201,162,75,.35); border-radius:4px; pointer-events:none; }
+  .cover-card .cc-flower { width:46%; transition:opacity .6s ease; }
+  .cover-card .cc-name { font-family:var(--calig); font-size:clamp(2.4rem,7.5vw,3.4rem); line-height:1.35; margin:.35rem 0 .2rem; padding:.45em .12em .45em; transition:opacity .6s ease;
+    background:linear-gradient(115deg,var(--gold-deep),var(--gold) 35%,var(--gold-lite) 50%,var(--gold) 65%,var(--gold-deep));
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .cover-card .cc-class { font-family:var(--serif); text-transform:uppercase; letter-spacing:.42em; color:var(--gold-deep); font-size:.7rem; margin-top:.7rem; }
+  .cover-card .cc-year { font-family:var(--serif); font-size:1.9rem; color:var(--gold-deep); }
+
+  /* ---------- section headings ---------- */
+  .sec-head { text-align:center; max-width:42ch; margin:0 auto clamp(2rem,5vw,3rem); }
+  .sec-head .eyebrow::before { content:"❦ "; }
+  .sec-head h2 { font-family:var(--serif); font-weight:600; font-size:clamp(1.9rem,5vw,2.8rem); line-height:1.1; margin:.3rem 0 .4rem; }
+  .sec-head p { font-family:var(--body); color:var(--ink-soft); line-height:1.7; }
+
+  /* ---------- steps ---------- */
+  .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:1.4rem; }
+  @media (max-width:820px){ .steps{ grid-template-columns:1fr; } }
+  .step { padding:2rem 1.6rem; text-align:center; }
+  .step .ico { width:78px; margin:0 auto .8rem; }
+  .step .n { font-family:var(--serif); font-style:italic; color:var(--gold-deep); font-size:1rem; }
+  .step h3 { font-family:var(--serif); font-weight:600; font-size:1.45rem; margin:.2rem 0 .5rem; color:var(--ink); }
+  .step p { font-family:var(--body); color:var(--ink-soft); line-height:1.7; font-size:1rem; }
+
+  /* ---------- features ---------- */
+  .features { display:grid; grid-template-columns:repeat(3,1fr); gap:1.2rem; }
+  @media (max-width:820px){ .features{ grid-template-columns:1fr 1fr; } }
+  @media (max-width:520px){ .features{ grid-template-columns:1fr; } }
+  .feat { padding:1.5rem; }
+  .feat h3 { font-family:var(--serif); font-weight:600; font-style:italic; color:var(--leaf-deep); font-size:1.2rem; margin:0 0 .35rem; }
+  .feat p { font-family:var(--body); color:var(--ink-soft); line-height:1.65; font-size:.98rem; margin:0; }
+  .feat .glyph { font-size:1.3rem; color:var(--carnation); margin-bottom:.4rem; }
+
+  /* ---------- flower strip ---------- */
+  .flowers-strip { background:linear-gradient(180deg, transparent, rgba(244,238,224,.5) 50%, transparent); }
+  .flower-row { display:flex; flex-wrap:wrap; gap:1.2rem; justify-content:center; align-items:flex-end; }
+  .fl { text-align:center; width:96px; }
+  .fl svg { width:72px; height:72px; }
+  .fl small { display:block; font-family:var(--serif); font-style:italic; color:var(--ink-soft); margin-top:.2rem; }
+
+  /* ---------- pricing ---------- */
+  .price-card { width:min(420px,100%); margin:0 auto; padding:2.4rem 2rem; text-align:center; }
+  .price-card .amount { font-family:var(--serif); font-weight:600; font-size:3.6rem; color:var(--ink); line-height:1; }
+  .price-card .amount span { font-size:1.2rem; color:var(--ink-soft); font-style:italic; }
+  .price-card ul { list-style:none; padding:0; margin:1.4rem 0; text-align:start; }
+  .price-card li { font-family:var(--body); color:var(--ink); padding:.4rem 0 .4rem 1.6rem; position:relative; }
+  .price-card li::before { content:"❦"; position:absolute; left:0; color:var(--carnation); }
+
+  /* ---------- final cta ---------- */
+  .final { text-align:center; }
+  .final .flower { width:96px; margin:0 auto 1rem; }
+  .final h2 { font-family:var(--serif); font-weight:600; font-size:clamp(2rem,5.5vw,3rem); margin:.2rem 0 .6rem; }
+  .final p { font-family:var(--body); color:var(--ink-soft); max-width:46ch; margin:0 auto 1.6rem; line-height:1.8; }
+
+  /* ---------- footer ---------- */
+  footer { border-top:1px solid rgba(216,205,182,.6); padding:2rem 0; }
+  footer .container { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; }
+  footer .brand .name { font-size:1.2rem; }
+  footer small { font-family:var(--body); color:var(--ink-soft); }
+</style>
+</head>
+<body>
+<div class="lp">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="container">
+      <a class="brand" href="/">
+        <span class="mark" id="brandMark"></span>
+        <span class="name">Flori<b>lège</b></span>
+      </a>
+      <nav class="navlinks">
+        <a class="txt" href="#how">How it works</a>
+        <a class="txt" href="#inside">What's inside</a>
+        <a class="txt" href="#price">Price</a>
+        <a class="btn btn--gold sm" href="create">Make a book</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container">
+      <div class="copy">
+        <p class="eyebrow">A herbarium of love, for graduates</p>
+        <h1>The whole class, <em>pressed into one little book.</em></h1>
+        <p class="lead">Gather messages, photos and voice notes from everyone who loves your graduate — pressed around the flower they adore, sealed with a secret only they can open.</p>
+        <div class="cta-row">
+          <a class="btn btn--gold" href="create">Make their book</a>
+          <a class="btn btn--ghost" href="book?demo=1">See an example →</a>
+        </div>
+        <p class="reassure">Ready in minutes — no account needed.</p>
+      </div>
+      <div class="art">
+        <div class="cover-card" id="coverCard">
+          <div class="cc-flower" id="ccFlower"></div>
+          <div class="cc-name" id="ccName">For&nbsp;them</div>
+          <div class="cc-class">Class of</div>
+          <div class="cc-year">2026</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how">
+    <div class="container">
+      <div class="sec-head">
+        <p class="eyebrow">How it works</p>
+        <h2>Three small steps, one Florilège forever.</h2>
+        <p>You set the scene, their friends fill the pages, and the book waits — sealed — for the day they open it.</p>
+      </div>
+      <div class="steps">
+        <div class="sheet step">
+          <div class="ico" id="step1"></div>
+          <div class="n">First</div>
+          <h3>Make the cover</h3>
+          <p>Pick their name, their year, and the flower they love. Watch the cover bloom as you type.</p>
+        </div>
+        <div class="sheet step">
+          <div class="ico" id="step2"></div>
+          <div class="n">Then</div>
+          <h3>Friends add pages</h3>
+          <p>Share one link. Everyone presses in their own page — a message, a photo, even a voice note.</p>
+        </div>
+        <div class="sheet step">
+          <div class="ico" id="step3"></div>
+          <div class="n">Finally</div>
+          <h3>They open it</h3>
+          <p>Give them a secret key. They turn the pages and find the whole class waiting inside.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHAT'S INSIDE -->
+  <section id="inside" style="background:linear-gradient(180deg, transparent, rgba(244,238,224,.45), transparent);">
+    <div class="container">
+      <div class="sec-head">
+        <p class="eyebrow">What's inside</p>
+        <h2>A real little book — that turns, and remembers.</h2>
+      </div>
+      <div class="features">
+        <div class="sheet feat"><div class="glyph">❀</div><h3>A flower they love</h3><p>Seven hand-drawn blooms, in any colour, pressed onto the cover and through the pages.</p></div>
+        <div class="sheet feat"><div class="glyph">✎</div><h3>A private dedication</h3><p>Open with your own words — a page only the recipient will ever read.</p></div>
+        <div class="sheet feat"><div class="glyph">❦</div><h3>Pages from everyone</h3><p>Each friend gets their own pressed-specimen page, gathered from near and far.</p></div>
+        <div class="sheet feat"><div class="glyph">♪</div><h3>Photos &amp; voice notes</h3><p>Let them see faces and hear voices — recorded right in the page.</p></div>
+        <div class="sheet feat"><div class="glyph">⚷</div><h3>Sealed with a key</h3><p>The book stays private until they enter the secret you choose for them.</p></div>
+        <div class="sheet feat"><div class="glyph">✦</div><h3>Arabic &amp; English</h3><p>Names and messages in elegant Arabic calligraphy or classic serif — your choice.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FLOWER STRIP -->
+  <section class="flowers-strip">
+    <div class="container">
+      <div class="sec-head">
+        <p class="eyebrow">Choose their bloom</p>
+        <h2>Every flower means something.</h2>
+      </div>
+      <div class="flower-row" id="flowerRow"></div>
+    </div>
+  </section>
+
+  <!-- PRICE -->
+  <section id="price">
+    <div class="container">
+      <div class="sec-head">
+        <p class="eyebrow">One book, one price</p>
+        <h2>Simple as a single bloom.</h2>
+      </div>
+      <div class="sheet price-card">
+        <div class="amount">€5<span> / book</span></div>
+        <ul>
+          <li>One Florilège book, yours forever</li>
+          <li>Unlimited pages from unlimited friends</li>
+          <li>Photos &amp; voice notes included</li>
+          <li>Private, sealed with your secret key</li>
+        </ul>
+        <a class="btn btn--gold" href="create" style="width:100%;">Make their book</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final">
+    <div class="container">
+      <div class="flower" id="finalFlower"></div>
+      <h2>Give them the whole class, in one book.</h2>
+      <p>It takes a few minutes to make, and they'll keep it for the rest of their life.</p>
+      <a class="btn btn--gold" href="create">Start their book</a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="container">
+      <a class="brand" href="/"><span class="mark" id="footMark"></span><span class="name">Flori<b>lège</b></span></a>
+      <small>Made with pressed flowers and good wishes · © <span id="yr"></span></small>
+    </div>
+  </footer>
+
+</div>
+
+<script type="module">
+import { FLOWERS, flowerSVG } from './assets/flowers.js';
+import { startPetals } from './assets/theme.js';
+
+startPetals(9);
+document.getElementById('yr').textContent = new Date().getFullYear();
+
+// brand mark + final flower
+document.getElementById('brandMark').innerHTML = flowerSVG('carnation', { size:34 });
+document.getElementById('footMark').innerHTML  = flowerSVG('carnation', { size:28, color:'#B8466F' });
+document.getElementById('finalFlower').innerHTML = flowerSVG('tulip', { size:96 });
+
+// step icons
+document.getElementById('step1').innerHTML = flowerSVG('rose',   { size:78 });
+document.getElementById('step2').innerHTML = flowerSVG('daisy',  { size:78, color:'#E6A92E' });
+document.getElementById('step3').innerHTML = flowerSVG('lavender',{ size:78 });
+
+// flower showcase row
+const meanings = {
+  carnation:'fascination', rose:'love', tulip:'a fresh start',
+  lily:'devotion', sunflower:'admiration', lavender:'grace', daisy:'new beginnings'
+};
+const row = document.getElementById('flowerRow');
+for (const [k,info] of Object.entries(FLOWERS)){
+  const d = document.createElement('div'); d.className = 'fl';
+  d.innerHTML = `${flowerSVG(k,{size:72})}<small>${info.label}<br>${meanings[k]||''}</small>`;
+  row.appendChild(d);
+}
+
+// hero cover: gently cycle through the flowers + accent colour
+const names = ['For them','Huda','Yusuf','Layan','Omar','Sara'];
+const keys = Object.keys(FLOWERS);
+const ccFlower = document.getElementById('ccFlower');
+const ccName = document.getElementById('ccName');
+const root = document.documentElement.style;
+let i = 0;
+function paint(idx){
+  const k = keys[idx % keys.length];
+  const color = FLOWERS[k].default;
+  ccFlower.style.opacity = '0'; ccName.style.opacity = '0';
+  setTimeout(()=>{
+    ccFlower.innerHTML = flowerSVG(k, { size:150, color });
+    ccName.textContent = names[idx % names.length];
+    // tint the live accent so petals + buttons echo the cover
+    root.setProperty('--carnation', color);
+    root.setProperty('--blush', shade(color, 90));
+    ccFlower.style.opacity = '1'; ccName.style.opacity = '1';
+  }, 350);
+}
+function shade(hex, amt){
+  const n=parseInt(hex.slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  r=Math.max(0,Math.min(255,r+amt)); g=Math.max(0,Math.min(255,g+amt)); b=Math.max(0,Math.min(255,b+amt));
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+paint(0);
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (!reduce) setInterval(()=>{ i++; paint(i); }, 3200);
+</script>
+</body>
+</html>

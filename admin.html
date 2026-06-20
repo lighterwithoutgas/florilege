@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manage book</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  .admin-wrap { width:min(900px,100%); }
+  .admin-head h1 { font-family:var(--serif); font-weight:600; font-size:clamp(1.6rem,4vw,2.2rem); margin:0; }
+  .admin-head .sub { font-family:var(--serif); font-style:italic; color:var(--ink-soft); margin:.2rem 0 1.4rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:1.2rem; }
+  .card { padding:1.2rem; }
+  .card .who { font-family:var(--serif); font-weight:600; font-size:1.3rem; color:var(--carnation-2); }
+  .card .msg { font-size:.98rem; line-height:1.6; color:var(--ink); max-height:9em; overflow:auto; margin:.5rem 0; }
+  .card img { width:100%; border-radius:3px; margin:.5rem 0; border:1px solid #eee; }
+  .card audio { width:100%; margin:.4rem 0; }
+  .rm-btn { font-family:var(--serif); color:var(--carnation-2); background:none; border:1px solid var(--line); border-radius:2px; padding:.4em 1em; cursor:pointer; }
+  .rm-btn:hover { border-color:var(--carnation); }
+  .none { font-family:var(--serif); font-style:italic; color:var(--ink-soft); }
+  .gate-card .err { color:var(--carnation-2); font-family:var(--serif); font-style:italic; min-height:1.2em; margin:.4rem 0 0; }
+</style>
+</head>
+<body>
+<div class="controls right"><button class="ctl" id="outBtn" type="button" hidden>Sign out</button></div>
+
+<!-- GATE -->
+<div class="stage" id="gate">
+  <div class="gate-wrap">
+    <div class="flower" id="gateFlower"></div>
+    <h1 id="gate-title">Manage this book</h1>
+    <p class="sub" id="gate-sub">Enter the management key you chose when you made the book.</p>
+    <div class="sheet gate-card">
+      <div class="field" style="margin-bottom:.8rem;">
+        <label for="keyInput">Management key</label>
+        <input class="input" id="keyInput" type="password" autocomplete="current-password">
+      </div>
+      <div style="text-align:center;margin-top:1.2rem;">
+        <button class="btn btn--gold" id="enterBtn" type="button">Open manager</button>
+      </div>
+      <div class="err" id="gateErr"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL -->
+<div class="stage" id="panel" hidden style="align-items:flex-start; padding-top:3rem;">
+  <div class="admin-wrap">
+    <div class="admin-head"><h1 id="p-title">Pages</h1><p class="sub">Remove any page below. Removing also deletes its photo and voice note.</p></div>
+    <div class="grid" id="grid"></div>
+  </div>
+</div>
+
+<script type="module">
+import { getBookId, applyAccent, startPetals, dirOf, escapeHTML } from './assets/theme.js';
+import { flowerSVG } from './assets/flowers.js';
+import { getBookConfig, redeemKeyAndSignIn, ensureAnon, watchAuth, signOut, listenPages, deletePage } from './assets/firebase-init.js';
+
+const bookId = getBookId();
+let cfg = null, items = [], opened = false;
+startPetals(8);
+document.getElementById('gateFlower').innerHTML = flowerSVG('rose', { size:92 });
+
+const gateErr = document.getElementById('gateErr');
+const enterBtn = document.getElementById('enterBtn');
+const keyInput = document.getElementById('keyInput');
+
+if (!bookId) { document.getElementById('gate-sub').textContent = 'This link is missing its book id.'; enterBtn.disabled = true; }
+else boot();
+
+async function boot(){
+  try { await ensureAnon(); } catch(e){}
+  try { cfg = await getBookConfig(bookId); } catch(e){ cfg = null; }
+  if (!cfg) { document.getElementById('gate-sub').textContent = "We couldn't find this book."; enterBtn.disabled = true; return; }
+  applyAccent(cfg.flowerColor);
+  document.getElementById('gateFlower').innerHTML = flowerSVG(cfg.flower, { size:92, color:cfg.flowerColor });
+  document.getElementById('gate-title').textContent = `Manage ${cfg.recipientName}'s book`;
+  if (cfg.hasManageKey === false)
+    document.getElementById('gate-sub').textContent = "No management key was set for this book, so it can't be managed.";
+}
+
+function authErr(e){
+  const c=(e&&e.code)?e.code:'';
+  if (c.includes('permission-denied')) return "That management key didn't work.";
+  if (c.includes('failed-precondition')) return "This book isn't active yet.";
+  if (c.includes('not-found')) return "We couldn't find this book.";
+  if (c.includes('resource-exhausted')) return "Too many attempts — wait a little and try again.";
+  return "Couldn't open the manager"+(c?` (${c})`:'')+".";
+}
+async function tryEnter(){
+  const key = keyInput.value; if (!key){ gateErr.textContent='Type your management key.'; return; }
+  enterBtn.disabled = true; gateErr.textContent='Opening…';
+  try { await redeemKeyAndSignIn(bookId, 'caretaker', key); }
+  catch(e){ gateErr.textContent = authErr(e); enterBtn.disabled = false; }
+}
+enterBtn.addEventListener('click', tryEnter);
+keyInput.addEventListener('keydown', e=>{ if(e.key==='Enter') tryEnter(); });
+document.getElementById('outBtn').addEventListener('click', ()=>signOut().then(()=>location.reload()));
+
+watchAuth(async (user)=>{
+  if (!user || user.isAnonymous || opened) return;
+  let claims = {};
+  try { claims = (await user.getIdTokenResult()).claims; } catch(e){}
+  if (claims.bookId !== bookId || claims.role !== 'caretaker') return; // must be a caretaker token for this book
+  opened = true;
+  document.getElementById('gate').hidden = true;
+  document.getElementById('panel').hidden = false;
+  document.getElementById('outBtn').hidden = false;
+  if (cfg) document.getElementById('p-title').textContent = `${cfg.recipientName}'s book`;
+  listenPages(bookId, list=>{ items=list; render(); }, ()=>{
+    document.getElementById('grid').innerHTML = `<p class="none">Couldn't load pages.</p>`;
+  });
+});
+
+function render(){
+  const grid = document.getElementById('grid');
+  if (!items.length){ grid.innerHTML = `<p class="none">No pages yet.</p>`; return; }
+  grid.innerHTML = '';
+  items.forEach(f=>{
+    const mdir = dirOf(f.message||f.name||'');
+    const card = document.createElement('div'); card.className='sheet card';
+    card.innerHTML = `<div dir="${mdir}"><div class="who">${escapeHTML(f.name||'')}</div>
+      ${f.photoURL?`<img src="${f.photoURL}" alt="">`:''}
+      <div class="msg">${escapeHTML(f.message||'').replace(/\n/g,'<br>')}</div>
+      ${f.voiceURL?`<audio controls src="${f.voiceURL}"></audio>`:''}</div>
+      <div style="margin-top:.6rem"><button class="rm-btn">Remove page</button></div>`;
+    card.querySelector('.rm-btn').addEventListener('click', async ()=>{
+      if (!confirm('Remove this page for good?')) return;
+      try { await deletePage(bookId, f.id); } catch(e){ alert('Could not remove: '+(e.message||e.code)); }
+    });
+    grid.appendChild(card);
+  });
+}
+</script>
+</body>
+</html>

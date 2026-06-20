@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Make a Florilège book</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  .wrap { width: min(1080px, 100%); }
+  .top { text-align:center; margin-bottom:1.4rem; }
+  .top .flower { width:84px; margin:0 auto .3rem; }
+  .top h1 { font-family:var(--serif); font-weight:600; font-size:clamp(1.8rem,5vw,2.6rem); margin:.2rem 0; }
+  .top p { font-family:var(--body); color:var(--ink-soft); }
+  .cols { display:grid; grid-template-columns:1.15fr .85fr; gap:1.6rem; align-items:start; }
+  @media (max-width:840px){ .cols{ grid-template-columns:1fr; } .preview-col{ order:-1; } }
+  .card { padding:clamp(1.2rem,3vw,2rem); }
+  .preview-col { position:sticky; top:1rem; }
+  .pickrow { display:flex; flex-wrap:wrap; gap:.5rem; }
+  .fl-thumb { border:1px solid var(--line); border-radius:8px; padding:6px; background:#fffdf7; cursor:pointer; width:74px; text-align:center; transition:border-color .15s, transform .15s; }
+  .fl-thumb:hover { transform:translateY(-2px); }
+  .fl-thumb.sel { border-color:var(--carnation); box-shadow:0 0 0 2px var(--blush); }
+  .fl-thumb small { font-family:var(--serif); color:var(--ink-soft); font-size:.74rem; display:block; }
+  .swatches { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
+  .sw { width:30px; height:30px; border-radius:50%; border:1px solid #0001; cursor:pointer; }
+  .sw.sel { outline:2px solid var(--ink); outline-offset:2px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; }
+  .seg button { border:none; background:transparent; padding:.4em 1em; font-family:var(--serif); cursor:pointer; color:var(--ink-soft); }
+  .seg button.on { background:var(--carnation); color:#fff; }
+  /* live preview cover */
+  .prev-cover { aspect-ratio:3/4; border-radius:8px; border:1px solid var(--paper-deep);
+    background:radial-gradient(120% 80% at 50% 30%, #fffdf8, var(--paper) 70%);
+    box-shadow:var(--shadow-page); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:1.4rem; position:relative; }
+  .prev-cover::after{ content:""; position:absolute; inset:12px; border:1px solid rgba(201,162,75,.3); border-radius:4px; }
+  .prev-flower { width:38%; }
+  .prev-name { font-size:clamp(2.2rem,7vw,3.4rem); line-height:1.35; margin:.4rem 0; padding:.45em .12em .45em; }
+  .prev-name.latin { font-family:var(--serif); font-weight:600; color:var(--ink); }
+  .prev-name.arabic { font-family:var(--calig); }
+  .prev-major { font-family:var(--serif); font-style:italic; color:var(--leaf-deep); font-size:1rem; margin-top:.1rem; }
+  .prev-class { font-family:var(--serif); text-transform:uppercase; letter-spacing:.4em; color:var(--gold-deep); font-size:.72rem; margin-top:.6rem; }
+  /* major + palette chips */
+  .major-chip { border:1px solid var(--line); border-radius:999px; padding:.4em .9em; font-family:var(--serif); cursor:pointer; background:#fffdf7; color:var(--ink-soft); display:inline-flex; align-items:center; gap:.45em; transition:border-color .15s, box-shadow .15s; }
+  .major-chip:hover { border-color:var(--carnation); }
+  .major-chip.sel { border-color:var(--carnation); color:var(--ink); box-shadow:0 0 0 2px var(--blush); }
+  .major-chip svg { width:18px; height:18px; }
+  .pal-chip { width:30px; height:30px; border-radius:50%; border:1px solid #0001; cursor:pointer; }
+  .pal-chip.sel { outline:2px solid var(--ink); outline-offset:2px; }
+  .prev-year { font-family:var(--serif); font-size:2rem; color:var(--gold-deep); }
+  .err { color:var(--carnation-2); font-family:var(--serif); font-style:italic; min-height:1.2em; }
+  .links { font-family:var(--body); }
+  .links .l { background:#fffdf7; border:1px solid var(--line); border-radius:6px; padding:.7rem .9rem; margin:.6rem 0; word-break:break-all; }
+  .links .l b { font-family:var(--serif); color:var(--leaf-deep); display:block; font-style:italic; margin-bottom:.2rem; }
+  .gate { text-align:center; }
+  .gate .flower { width:96px; margin:0 auto .4rem; }
+  label .req { color:var(--carnation-2); }
+  /* then & now photos */
+  .photo-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  @media (max-width:520px){ .photo-grid{ grid-template-columns:1fr; } }
+  .photo-box { border:1px dashed var(--line); border-radius:6px; padding:1rem; background:rgba(255,255,255,.4); text-align:center; }
+  .photo-box h3 { font-family:var(--serif); font-style:italic; color:var(--leaf-deep); margin:.1rem 0 .6rem; font-size:1.05rem; }
+  .photo-box .thumb { margin:.7rem auto; max-width:140px; background:#fff; border:1px solid #eee; padding:5px; box-shadow:0 8px 20px -14px rgba(58,53,44,.7); transform:rotate(-1.5deg); }
+  .photo-box .thumb img { display:block; width:100%; }
+  .photo-box .cap { margin-top:.5rem; font-size:.95rem; text-align:center; }
+  /* shared brand bar */
+  .site-bar { position:sticky; top:0; z-index:40; backdrop-filter:blur(8px);
+    background:rgba(251,248,241,.72); border-bottom:1px solid rgba(216,205,182,.6); }
+  .site-bar .inner { width:min(1080px,92%); margin:0 auto; display:flex; align-items:center; justify-content:space-between; padding:.7rem 0; }
+  .site-bar .brand { display:flex; align-items:center; gap:.5rem; text-decoration:none; color:var(--ink); }
+  .site-bar .brand .mark { width:30px; height:30px; }
+  .site-bar .brand .name { font-family:var(--serif); font-weight:600; font-size:1.35rem; }
+  .site-bar .brand .name b { color:var(--carnation-2); }
+  .site-bar a.home { font-family:var(--serif); font-size:1rem; color:var(--ink-soft); text-decoration:none; }
+  .site-bar a.home:hover { color:var(--carnation); }
+</style>
+</head>
+<body>
+<header class="site-bar">
+  <div class="inner">
+    <a class="brand" href="/"><span class="mark" id="barMark"></span><span class="name">Flori<b>lège</b></span></a>
+    <a class="home" href="/">← Home</a>
+  </div>
+</header>
+<div class="stage">
+  <!-- OWNER GATE -->
+  <div class="wrap gate" id="gate">
+    <div class="flower" id="gateFlower"></div>
+    <h1 style="font-family:var(--serif);font-weight:600;font-size:2.2rem;">Make a Florilège book</h1>
+    <p style="font-family:var(--body);color:var(--ink-soft);max-width:46ch;margin:.4rem auto 1.4rem;">A little interactive book of messages, collected from friends and pressed around a flower the recipient loves. Sign in to make one — it's yours to manage.</p>
+    <button class="btn btn--gold" id="googleBtn" type="button">Sign in with Google</button>
+    <div class="err" id="gateErr" style="margin-top:.8rem;"></div>
+  </div>
+
+  <!-- WIZARD -->
+  <div class="wrap" id="wizard" hidden>
+    <div class="top">
+      <div class="flower" id="topFlower"></div>
+      <h1>Make a Florilège book</h1>
+      <p>Fill it in — the cover on the right updates as you go.</p>
+    </div>
+    <div class="cols">
+      <div class="sheet card">
+        <div class="field">
+          <label>Who is it for? <span class="req">*</span></label>
+          <input class="input" id="f-name" maxlength="60" placeholder="Their name">
+        </div>
+        <div class="field">
+          <label>Faculty / Major</label>
+          <span class="hint">Sets a matching theme &amp; emblem. Pick one or write your own.</span>
+          <div class="pickrow" id="majorPick" style="margin-top:.5rem;"></div>
+          <input class="input" id="f-major-custom" maxlength="60" placeholder="Type the faculty / major…" style="margin-top:.7rem; display:none;">
+        </div>
+        <div class="field">
+          <label>Cover symbol</label>
+          <span class="hint">Not into flowers? Use the major emblem instead — or nothing.</span>
+          <div class="seg" id="symbolSeg" style="margin-top:.5rem;">
+            <button type="button" data-v="flower" class="on">Flower</button>
+            <button type="button" data-v="emblem">Major emblem</button>
+            <button type="button" data-v="none">None</button>
+          </div>
+        </div>
+        <div class="field" id="flowerField">
+          <label>Their flower</label>
+          <div class="pickrow" id="flowerPick"></div>
+        </div>
+        <div class="field">
+          <label>Colour</label>
+          <div class="pickrow" id="palettes" style="margin-bottom:.6rem;"></div>
+          <div class="swatches" id="swatches"></div>
+        </div>
+        <div class="field">
+          <label>Year on the cover</label>
+          <input class="input" id="f-year" maxlength="8" placeholder="2026" style="max-width:140px;">
+        </div>
+        <div class="field">
+          <label>Invitation shown to friends</label>
+          <textarea class="input" id="f-intro" maxlength="500" placeholder="A line inviting friends to leave a page…"></textarea>
+        </div>
+        <div class="field">
+          <label>Opening dedication <span class="hint" style="font-style:normal">— the first page, only they see</span></label>
+          <textarea class="input" id="f-ded" maxlength="1000" placeholder="The message the book opens with…"></textarea>
+        </div>
+        <div class="field">
+          <label>Closing line <span class="hint" style="font-style:normal">— the very last page</span></label>
+          <input class="input" id="f-close" maxlength="240" placeholder="A short line to end the book on…">
+        </div>
+        <div class="field">
+          <label>Their photos</label>
+          <span class="hint">A “then &amp; now” pressed inside the book — childhood and today. Optional.</span>
+          <div class="photo-grid" style="margin-top:.7rem;">
+            <div class="photo-box">
+              <h3>Childhood</h3>
+              <button class="btn btn--ghost" id="thenBtn" type="button">Choose photo</button>
+              <input type="file" id="thenInput" accept="image/*" hidden>
+              <div class="thumb" id="thenThumb" hidden><img id="thenImg" alt=""></div>
+              <input class="input cap" id="thenCap" maxlength="120" placeholder="Caption (optional)">
+            </div>
+            <div class="photo-box">
+              <h3>Now</h3>
+              <button class="btn btn--ghost" id="nowBtn" type="button">Choose photo</button>
+              <input type="file" id="nowInput" accept="image/*" hidden>
+              <div class="thumb" id="nowThumb" hidden><img id="nowImg" alt=""></div>
+              <input class="input cap" id="nowCap" maxlength="120" placeholder="Caption (optional)">
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Recipient's key <span class="req">*</span></label>
+          <span class="hint">The secret you give the recipient to open their book. Min 4 characters.</span>
+          <input class="input" id="f-key" maxlength="60" placeholder="e.g. a word only they'd know">
+        </div>
+        <div class="field">
+          <label>Your management key <span class="hint" style="font-style:normal">— optional, keep it private</span></label>
+          <span class="hint">Lets <em>you</em> remove any page later (at /admin). Min 4 characters. Don't share it.</span>
+          <input class="input" id="f-managekey" maxlength="60" placeholder="a different secret, just for you">
+        </div>
+
+        <div class="err" id="err"></div>
+        <button class="btn btn--gold" id="createBtn" type="button">Pay €5 &amp; create the book</button>
+        <p class="hint" style="text-align:center;margin-top:.6rem;">Secure checkout. Your Florilège book is created the moment you confirm.</p>
+      </div>
+
+      <div class="preview-col">
+        <div class="prev-cover" id="cover">
+          <div class="prev-flower" id="prevFlower"></div>
+          <div class="prev-name latin" id="prevName">Their name</div>
+          <div class="prev-major" id="prevMajor" style="display:none;"></div>
+          <div class="prev-class">Class of</div>
+          <div class="prev-year" id="prevYear">2026</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DONE -->
+  <div class="wrap gate" id="done" hidden>
+    <div class="flower" id="doneFlower"></div>
+    <h1 style="font-family:var(--serif);font-weight:600;font-size:2rem;">Your book is ready</h1>
+    <p style="font-family:var(--body);color:var(--ink-soft);">Three links — share them with the right people.</p>
+    <div class="sheet card links" id="links" style="text-align:start;max-width:640px;margin:1rem auto;"></div>
+    <button class="btn" id="anotherBtn" type="button">Make another</button>
+  </div>
+</div>
+
+<script type="module">
+import { FLOWERS, flowerSVG } from './assets/flowers.js';
+import { MAJORS, PALETTES, emblemSVG, emblemForMajor } from './assets/majors.js';
+import { startPetals } from './assets/theme.js';
+import { ensureAnon, startCheckout, uploadPhoto } from './assets/firebase-init.js';
+
+startPetals(10);
+
+document.getElementById('barMark').innerHTML = flowerSVG('carnation',{size:30});
+document.getElementById('gateFlower').innerHTML = flowerSVG('carnation',{size:96});
+document.getElementById('topFlower').innerHTML = flowerSVG('rose',{size:84});
+document.getElementById('doneFlower').innerHTML = flowerSVG('tulip',{size:96});
+
+const state = { flower:'carnation', color: FLOWERS.carnation.default, script:'arabic',
+                major:'', majorKey:'', symbol:'flower' };
+
+function currentMajorText(){
+  if (state.majorKey === 'custom') return document.getElementById('f-major-custom').value.trim();
+  if (MAJORS[state.majorKey]) return MAJORS[state.majorKey].label;
+  return '';
+}
+
+function applyAccent(hex){
+  const root = document.documentElement.style;
+  root.setProperty('--carnation', hex);
+  root.setProperty('--carnation-2', shade(hex,-28));
+  root.setProperty('--blush', shade(hex,90));
+}
+function shade(hex, amt){
+  const n=parseInt(hex.slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  r=Math.max(0,Math.min(255,r+amt));g=Math.max(0,Math.min(255,g+amt));b=Math.max(0,Math.min(255,b+amt));
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+
+// flower picker
+const pick = document.getElementById('flowerPick');
+for (const [k,info] of Object.entries(FLOWERS)){
+  const d=document.createElement('div'); d.className='fl-thumb'+(k===state.flower?' sel':''); d.dataset.k=k;
+  d.innerHTML=`${flowerSVG(k,{size:44})}<small>${info.label}</small>`;
+  d.addEventListener('click',()=>{ state.flower=k; state.color=FLOWERS[k].default; document.querySelectorAll('.fl-thumb').forEach(t=>t.classList.toggle('sel',t.dataset.k===k)); buildSwatches(); render(); });
+  pick.appendChild(d);
+}
+// swatches
+const palette = ['#D2588A','#C75C7A','#B23A48','#D8504F','#E6A92E','#E58BB0','#8E7BC4','#6E8B6A','#3A6EA5','#C9A24B'];
+const swWrap = document.getElementById('swatches');
+function buildSwatches(){
+  swWrap.innerHTML='';
+  palette.forEach(c=>{ const s=document.createElement('div'); s.className='sw'+(c.toLowerCase()===state.color.toLowerCase()?' sel':''); s.style.background=c;
+    s.addEventListener('click',()=>{ state.color=c; render(); buildSwatches(); }); swWrap.appendChild(s); });
+  const inp=document.createElement('input'); inp.type='color'; inp.value=state.color; inp.style.cssText='width:34px;height:34px;border:none;background:none;cursor:pointer;';
+  inp.addEventListener('input',()=>{ state.color=inp.value; render(); buildSwatches(); }); swWrap.appendChild(inp);
+}
+buildSwatches();
+
+// faculty / major picker
+const majorPick = document.getElementById('majorPick');
+const customInput = document.getElementById('f-major-custom');
+function buildMajors(){
+  majorPick.innerHTML='';
+  for (const [k,info] of Object.entries(MAJORS)){
+    const c=document.createElement('div'); c.className='major-chip'+(state.majorKey===k?' sel':''); c.dataset.k=k;
+    c.innerHTML=`${emblemSVG(info.emblem,{size:18,color:'currentColor'})}<span>${info.label}</span>`;
+    c.addEventListener('click',()=>{ state.majorKey=k; state.color=info.accent; customInput.style.display='none'; customInput.value=''; buildSwatches(); buildMajors(); render(); });
+    majorPick.appendChild(c);
+  }
+  const other=document.createElement('div'); other.className='major-chip'+(state.majorKey==='custom'?' sel':''); other.dataset.k='custom';
+  other.innerHTML=`<span>Other…</span>`;
+  other.addEventListener('click',()=>{ state.majorKey='custom'; customInput.style.display='block'; customInput.focus(); buildMajors(); render(); });
+  majorPick.appendChild(other);
+}
+buildMajors();
+customInput.addEventListener('input', render);
+
+// colour palettes
+const palWrap = document.getElementById('palettes');
+PALETTES.forEach(p=>{
+  const s=document.createElement('div'); s.className='pal-chip'; s.title=p.label; s.style.background=p.color;
+  s.addEventListener('click',()=>{ state.color=p.color; buildSwatches(); render(); });
+  palWrap.appendChild(s);
+});
+
+// cover symbol toggle (flower / major emblem / none)
+document.querySelectorAll('#symbolSeg button').forEach(b=>{
+  b.addEventListener('click',()=>{ state.symbol=b.dataset.v; document.querySelectorAll('#symbolSeg button').forEach(x=>x.classList.toggle('on',x===b)); render(); });
+});
+
+// live fields
+['f-name','f-year'].forEach(id=>document.getElementById(id).addEventListener('input',render));
+
+// then & now photo pickers
+let thenFile = null, nowFile = null;
+function wirePhoto(btnId, inputId, thumbId, imgId, set){
+  const input = document.getElementById(inputId);
+  document.getElementById(btnId).addEventListener('click', ()=>input.click());
+  input.addEventListener('change', ()=>{
+    const f = input.files[0]; if (!f) return; set(f);
+    const url = URL.createObjectURL(f);
+    document.getElementById(imgId).src = url;
+    document.getElementById(thumbId).hidden = false;
+    document.getElementById(btnId).textContent = 'Change photo';
+  });
+}
+wirePhoto('thenBtn','thenInput','thenThumb','thenImg', f=>thenFile=f);
+wirePhoto('nowBtn','nowInput','nowThumb','nowImg', f=>nowFile=f);
+
+function render(){
+  applyAccent(state.color);
+  // cover symbol: flower / major emblem / none
+  const symEl = document.getElementById('prevFlower');
+  if (state.symbol==='emblem') symEl.innerHTML = emblemSVG(emblemForMajor(state.majorKey), {size:120, color:state.color});
+  else if (state.symbol==='none') symEl.innerHTML = '';
+  else symEl.innerHTML = flowerSVG(state.flower,{size:160,color:state.color});
+  // name
+  const name = document.getElementById('f-name').value.trim() || 'Their name';
+  const nm = document.getElementById('prevName');
+  nm.textContent = name; nm.className = 'prev-name '+(state.script==='arabic'?'arabic':'latin');
+  if (state.script==='arabic') nm.classList.add('gold-text');
+  // major line
+  const mj = currentMajorText();
+  const pm = document.getElementById('prevMajor');
+  pm.textContent = mj; pm.style.display = mj ? '' : 'none';
+  // flower picker only matters when the flower symbol is chosen
+  document.getElementById('flowerField').style.display = state.symbol==='flower' ? '' : 'none';
+  document.getElementById('prevYear').textContent = document.getElementById('f-year').value.trim() || '2026';
+}
+render();
+
+// no login — sign in anonymously in the background and show the form
+document.getElementById('gate').hidden = true;
+document.getElementById('wizard').hidden = false;
+ensureAnon().catch(()=>{ /* checkout will retry; surfaced on click if it fails */ });
+
+// owner free-create: /create?owner=THE_CODE skips payment
+const ownerCode = new URLSearchParams(location.search).get('owner') || '';
+const BTN_LABEL = ownerCode ? 'Create the book (free)' : 'Pay €5 & create the book';
+const createBtn = document.getElementById('createBtn');
+if (ownerCode) {
+  createBtn.textContent = BTN_LABEL;
+  const hintEl = createBtn.nextElementSibling;
+  if (hintEl) hintEl.textContent = 'Owner mode — this book is created free, no payment.';
+}
+createBtn.addEventListener('click', async ()=>{
+  const name = document.getElementById('f-name').value.trim();
+  const key  = document.getElementById('f-key').value.trim();
+  const manageKey = document.getElementById('f-managekey').value.trim();
+  const err  = document.getElementById('err');
+  if (!name){ err.textContent='Add the recipient name.'; return; }
+  if (key.length<4){ err.textContent='The key needs at least 4 characters.'; return; }
+  if (manageKey && manageKey.length<4){ err.textContent='The management key needs at least 4 characters (or leave it empty).'; return; }
+  err.textContent='';
+  createBtn.disabled=true; createBtn.textContent='Creating…';
+  try {
+    const config = {
+      recipientName:name, nameScript:state.script, flower:state.flower, flowerColor:state.color,
+      major: currentMajorText(), coverSymbol: state.symbol, emblem: emblemForMajor(state.majorKey),
+      year: document.getElementById('f-year').value.trim() || String(new Date().getFullYear()),
+      intro: document.getElementById('f-intro').value.trim(),
+      dedication: document.getElementById('f-ded').value.trim(),
+      closing: document.getElementById('f-close').value.trim(),
+    };
+    if (thenFile || nowFile){
+      createBtn.textContent='Uploading photos…';
+      if (thenFile){ config.thenPhotoURL = await uploadPhoto(thenFile,'then'); config.thenCaption = document.getElementById('thenCap').value.trim(); }
+      if (nowFile){  config.nowPhotoURL  = await uploadPhoto(nowFile,'now');   config.nowCaption  = document.getElementById('nowCap').value.trim(); }
+    }
+    createBtn.textContent = ownerCode ? 'Creating your book…' : 'Taking you to secure checkout…';
+    const { url, bookId } = await startCheckout(config, key, manageKey || null, ownerCode);
+    // remember the key locally so the success page can remind the buyer of it
+    try { localStorage.setItem('keepsake_key_'+bookId, key); } catch(_){}
+    window.location.href = url;
+  } catch(e){
+    err.textContent = 'Could not create the book: '+(e.message||e.code||'error');
+    createBtn.disabled=false; createBtn.textContent=BTN_LABEL;
+  }
+});
+</script>
+</body>
+</html>

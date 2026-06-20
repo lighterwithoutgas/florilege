@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+functions/node_modules/
+
+# firebase cache / debug
+.firebase/
+*-debug.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# local secrets / temp (never commit)
+.env
+.env.*
+!.env.example
+.runtimeconfig.json
+*.tmp
+*.clean
+stripekey*
+gp.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
