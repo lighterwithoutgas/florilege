@@ -381,6 +381,36 @@ exports.deletePage = onCall(guard(async (request) => {
 }));
 
 /* ============================================================
+   deleteBook — owner only. Permanently removes a book and
+   everything beneath it: all friend pages, the private content +
+   hashed keys, and every uploaded file. Lets an owner clean up old
+   books (e.g. unfinished ones left over from the paid era).
+   data: { bookId }
+   ============================================================ */
+exports.deleteBook = onCall(guard(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Sign in first.");
+  const { bookId } = request.data || {};
+  if (!bookId) throw new HttpsError("invalid-argument", "Missing bookId.");
+
+  const ref = db.doc(`books/${bookId}`);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: true };           // already gone — treat as success
+  if (snap.data().ownerUid !== uid)
+    throw new HttpsError("permission-denied", "Only the owner can delete this book.");
+
+  // Remove every Storage object under this book (friend submissions + owner
+  // photos). Best-effort: a Storage hiccup must not block the Firestore cleanup.
+  try {
+    await admin.storage().bucket().deleteFiles({ prefix: `books/${bookId}/` });
+  } catch (e) { console.error("deleteBook: storage cleanup failed", bookId, e); }
+
+  // Recursively delete the book doc + all subcollections (messages, private/*).
+  await db.recursiveDelete(ref);
+  return { ok: true };
+}));
+
+/* ============================================================
    startClaim / finishClaim — attach a book to the buyer's real
    (Google) account.
 

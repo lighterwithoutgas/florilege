@@ -39,6 +39,7 @@ const fnRedeemKey     = httpsCallable(functions, "redeemKey");
 const fnDeletePage    = httpsCallable(functions, "deletePage");
 const fnStartClaim    = httpsCallable(functions, "startClaim");
 const fnFinishClaim   = httpsCallable(functions, "finishClaim");
+const fnDeleteBook    = httpsCallable(functions, "deleteBook");
 
 const PENDING_CLAIM = "florilege_pending_claim";
 
@@ -219,4 +220,10 @@ export function listenPages(bookId, cb, onErr) {
 /* ---------- owner/caretaker: delete a page ---------- */
 export async function deletePage(bookId, msgId) {
   await fnDeletePage({ bookId, msgId });
+}
+
+/* ---------- owner: permanently delete a whole book ---------- */
+export async function deleteBook(bookId) {
+  await fnDeleteBook({ bookId });
+  try { localStorage.removeItem('keepsake_key_' + bookId); } catch (_) {}
 }

@@ -98,6 +98,10 @@
   .act.primary { background:linear-gradient(180deg,var(--gold-lite),var(--gold)); border-color:var(--gold-deep); color:#4a3a12; }
   .act.primary:hover { color:#4a3a12; filter:brightness(1.03); }
   .act.copied { border-color:var(--leaf); color:var(--leaf-deep); }
+  /* destructive action sits apart from the rest of the row */
+  .act.danger { color:var(--carnation-2); margin-left:auto; }
+  .act.danger:hover { border-color:var(--carnation-2); color:var(--carnation-2); background:#fdeef3; }
+  .del-warn { flex-basis:100%; margin:0 0 .2rem; font-family:var(--body); font-size:.82rem; color:var(--carnation-2); line-height:1.45; }
 
   .none { font-family:var(--serif); font-style:italic; color:var(--ink-soft); text-align:center; margin:2rem auto; line-height:1.8; }
   .none a { color:var(--gold-deep); }
@@ -150,7 +154,7 @@ import { flowerSVG } from './assets/flowers.js';
 import { emblemSVG } from './assets/majors.js';
 import {
   watchAuth, googleSignIn, signOut, isSignedInAccount,
-  finishPendingClaim, listMyBooks
+  finishPendingClaim, listMyBooks, deleteBook
 } from './assets/firebase-init.js';
 
 startPetals(7);
@@ -235,22 +239,28 @@ function render(books){
         <p class="who">${escapeHTML(b.recipientName || 'A book')}</p>
         ${b.major ? `<p class="major">${escapeHTML(b.major)}</p>` : ''}
         <span class="badge ${active?'active':'pending'}">${active?'Ready to share':'Still finishing'}</span>
-        ${active ? `
-          <p class="keyline">${ key
-            ? `Recipient's key: <span class="keychip">${escapeHTML(key)}</span>`
-            : `The recipient also needs the key you chose.` }</p>
-          <div class="actions">
+        ${active
+          ? `<p class="keyline">${ key
+              ? `Recipient's key: <span class="keychip">${escapeHTML(key)}</span>`
+              : `The recipient also needs the key you chose.` }</p>`
+          : `<p class="keyline">This book is still being confirmed. Refresh in a minute and it'll be ready to share.</p>`}
+        <div class="actions">
+          ${active ? `
             <a class="act primary" href="/b/${b.id}">Open book</a>
             <button class="act" data-copy="${friend}">Friends' link</button>
             <button class="act" data-copy="${recipient}">Recipient link</button>
-            ${b.hasManageKey ? `<a class="act" href="/m/${b.id}">Manage pages</a>` : ''}
-          </div>
-        ` : `<p class="keyline">This book is still being confirmed. Refresh in a minute and it'll be ready to share.</p>`}
+            ${b.hasManageKey ? `<a class="act" href="/m/${b.id}">Manage pages</a>` : ''}` : ''}
+          <button class="act danger" data-del>Delete</button>
+        </div>
       </div>`;
     shelf.appendChild(card);
+    wireActions(card, b);
   }
+}
 
-  shelf.querySelectorAll('.act[data-copy]').forEach(btn=>{
+// wire the copy + delete buttons inside one card (re-runnable, e.g. after a cancel)
+function wireActions(card, b){
+  card.querySelectorAll('.act[data-copy]').forEach(btn=>{
     const label = btn.textContent;
     btn.addEventListener('click', ()=>{
       navigator.clipboard.writeText(btn.dataset.copy).then(()=>{
@@ -259,6 +269,41 @@ function render(books){
       });
     });
   });
+  const del = card.querySelector('.act.danger[data-del]');
+  if (del) del.addEventListener('click', ()=> askDelete(card, b));
+}
+
+// inline two-step confirm — replaces the actions row with a warning + confirm/cancel
+function askDelete(card, b){
+  const actions = card.querySelector('.actions');
+  const prev = actions.innerHTML;
+  actions.innerHTML = `
+    <p class="del-warn">Delete ${escapeHTML(b.recipientName || 'this book')}’s book and everything in it — all pages, photos and voice notes? This can’t be undone.</p>
+    <button class="act danger" data-go>Delete forever</button>
+    <button class="act" data-cancel>Keep it</button>`;
+  actions.querySelector('[data-cancel]').addEventListener('click', ()=>{
+    actions.innerHTML = prev; wireActions(card, b);
+  });
+  actions.querySelector('[data-go]').addEventListener('click', async (e)=>{
+    const go = e.currentTarget; go.disabled = true; go.textContent = 'Deleting…';
+    try {
+      await deleteBook(b.id);
+      card.style.transition = 'opacity .3s, transform .3s';
+      card.style.opacity = '0'; card.style.transform = 'scale(.97)';
+      setTimeout(()=>{ card.remove(); afterDelete(); }, 300);
+    } catch(err){
+      go.disabled = false; go.textContent = 'Delete forever';
+      const warn = actions.querySelector('.del-warn');
+      if (warn) warn.textContent = "Couldn't delete just now — please try again.";
+    }
+  });
+}
+
+// after a card is removed: update the count, or fall back to the empty state
+function afterDelete(){
+  const remaining = shelf.querySelectorAll('.bk').length;
+  if (!remaining){ show({ empty:true, out:true }); return; }
+  headSub.innerHTML = `<span class="count">${remaining} book${remaining>1?'s':''}</span> saved to your account.`;
 }
 </script>
 </body>
