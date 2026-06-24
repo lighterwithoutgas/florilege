@@ -24,43 +24,80 @@
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/theme.css">
 <style>
-  .wrap { width:min(960px,100%); }
+  .wrap { width:min(1000px,100%); }
+
+  /* brand bar */
   .site-bar { position:sticky; top:0; z-index:40; backdrop-filter:blur(8px);
     background:rgba(251,248,241,.72); border-bottom:1px solid rgba(216,205,182,.6); }
-  .site-bar .inner { width:min(960px,92%); margin:0 auto; display:flex; align-items:center; justify-content:space-between; padding:.7rem 0; }
+  .site-bar .inner { width:min(1000px,92%); margin:0 auto; display:flex; align-items:center; justify-content:space-between; padding:.7rem 0; }
   .site-bar .brand { display:flex; align-items:center; gap:.5rem; text-decoration:none; color:var(--ink); }
   .site-bar .brand .mark { width:30px; height:30px; }
   .site-bar .brand .name { font-family:var(--serif); font-weight:600; font-size:1.35rem; }
   .site-bar .brand .name b { color:var(--carnation-2); }
   .site-bar .nav { display:flex; align-items:center; gap:1.1rem; }
-  .site-bar a.link, .site-bar button.link { font-family:var(--serif); font-size:1rem; color:var(--ink-soft); text-decoration:none; background:none; border:none; cursor:pointer; }
+  .site-bar a.link, .site-bar button.link { font-family:var(--serif); font-size:1rem; color:var(--ink-soft); text-decoration:none; background:none; border:none; cursor:pointer; padding:0; }
   .site-bar a.link:hover, .site-bar button.link:hover { color:var(--carnation); }
 
-  .head { text-align:center; margin:1.6rem 0 1.2rem; }
-  .head .flower { width:84px; margin:0 auto .3rem; }
-  .head h1 { font-family:var(--serif); font-weight:600; font-size:clamp(1.8rem,5vw,2.4rem); margin:.2rem 0; }
-  .head p { font-family:var(--body); color:var(--ink-soft); max-width:50ch; margin:.3rem auto; }
+  /* header */
+  .head { text-align:center; margin:1.8rem 0 1.6rem; }
+  .head .flower { width:78px; margin:0 auto .2rem; }
+  .head h1 { font-family:var(--serif); font-weight:600; font-size:clamp(1.9rem,5vw,2.5rem); margin:.1rem 0; }
+  .head p { font-family:var(--body); color:var(--ink-soft); max-width:52ch; margin:.2rem auto; }
+  .head .count { font-family:var(--serif); font-style:italic; color:var(--leaf-deep); }
 
-  .gate { text-align:center; max-width:520px; margin:0 auto; }
-  .gate .flower { width:96px; margin:0 auto .4rem; }
+  /* sign-in gate */
+  .gate { width:min(440px,100%); margin:2rem auto; text-align:center; }
+  .gate .flower { width:90px; margin:0 auto .5rem; }
+  .gate h2 { font-family:var(--serif); font-weight:600; font-size:1.5rem; margin:.2rem 0; }
+  .gate p { font-family:var(--body); color:var(--ink-soft); margin:.3rem 0 1.3rem; line-height:1.6; }
+  .gate .gcard { padding:1.8rem; }
 
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:1.2rem; }
-  .bk { padding:1.2rem; }
-  .bk .who { font-family:var(--serif); font-weight:600; font-size:1.35rem; color:var(--carnation-2); margin:0; }
-  .bk .meta { font-family:var(--serif); font-style:italic; color:var(--ink-soft); font-size:.9rem; margin:.15rem 0 .8rem; }
-  .badge { display:inline-block; font-family:var(--body); font-size:.72rem; letter-spacing:.06em; text-transform:uppercase;
-    border-radius:999px; padding:.15em .7em; vertical-align:middle; margin-inline-start:.4em; }
+  /* shelf */
+  .shelf { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); gap:1.4rem; }
+  @media (max-width:520px){ .shelf{ grid-template-columns:1fr; } }
+  .bk { display:grid; grid-template-columns:128px 1fr; gap:1.2rem; padding:1.2rem; align-items:stretch; }
+  @media (max-width:430px){ .bk{ grid-template-columns:1fr; } }
+
+  /* mini cover (mirrors the create-page preview) */
+  .mini { aspect-ratio:3/4; border-radius:6px; border:1px solid var(--paper-deep);
+    background:radial-gradient(120% 80% at 50% 30%, #fffdf8, var(--paper) 70%);
+    box-shadow:0 16px 34px -22px rgba(58,53,44,.7); position:relative;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:.7rem; overflow:hidden; }
+  .mini::after{ content:""; position:absolute; inset:7px; border:1px solid rgba(201,162,75,.32); border-radius:3px; }
+  .mini .sym { width:46%; line-height:0; }
+  .mini .nm { margin:.25rem 0 .1rem; line-height:1.15; word-break:break-word; }
+  .mini .nm.latin { font-family:var(--serif); font-weight:600; color:var(--ink); font-size:clamp(.95rem,4.4vw,1.25rem); }
+  .mini .nm.arabic { font-family:var(--calig); font-size:clamp(1.2rem,5.5vw,1.6rem); }
+  .mini .cls { font-family:var(--serif); text-transform:uppercase; letter-spacing:.28em; color:var(--gold-deep); font-size:.5rem; margin-top:.15rem; }
+  .mini .yr { font-family:var(--serif); color:var(--gold-deep); font-size:.95rem; line-height:1; }
+
+  /* info side */
+  .info { display:flex; flex-direction:column; min-width:0; }
+  .info .who { font-family:var(--serif); font-weight:600; font-size:1.35rem; color:var(--ink); margin:0; line-height:1.2; }
+  .info .major { font-family:var(--serif); font-style:italic; color:var(--leaf-deep); font-size:.95rem; margin:.1rem 0 0; }
+  .badge { align-self:flex-start; display:inline-flex; align-items:center; gap:.4em; font-family:var(--body); font-size:.7rem; letter-spacing:.07em; text-transform:uppercase;
+    border-radius:999px; padding:.2em .7em; margin:.5rem 0 .2rem; }
+  .badge::before { content:""; width:.5em; height:.5em; border-radius:50%; }
   .badge.active { background:#E7F0E6; color:#3f6b3a; border:1px solid #cfe2cd; }
+  .badge.active::before { background:#5a9152; }
   .badge.pending { background:#FBF1DD; color:#8a6a1e; border:1px solid #ecdcb6; }
-  .l { background:#fffdf7; border:1px solid var(--line); border-radius:6px; padding:.55rem .75rem; margin:.5rem 0; word-break:break-all; font-family:var(--body); font-size:.9rem; }
-  .l b { font-family:var(--serif); color:var(--leaf-deep); display:block; font-style:italic; margin-bottom:.15rem; font-size:.9rem; }
-  .l .copy { float:right; font-family:var(--serif); font-size:.78rem; cursor:pointer; color:var(--gold-deep); border:none; background:none; }
-  .keychip { display:inline-block; background:var(--blush); border-radius:6px; padding:.05em .45em; font-family:var(--serif); }
-  .bk .open { display:inline-block; margin-top:.5rem; font-family:var(--serif); color:var(--gold-deep); text-decoration:none; }
-  .bk .open:hover { color:var(--carnation); }
-  .none { font-family:var(--serif); font-style:italic; color:var(--ink-soft); text-align:center; }
+  .badge.pending::before { background:#c79a2e; }
+
+  .keyline { font-family:var(--body); font-size:.86rem; color:var(--ink-soft); margin:.5rem 0 .2rem; }
+  .keychip { display:inline-block; background:var(--blush); border-radius:5px; padding:.05em .5em; font-family:var(--serif); color:var(--carnation-2); }
+
+  .actions { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:auto; padding-top:.8rem; }
+  .act { font-family:var(--serif); font-size:.92rem; cursor:pointer; border:1px solid var(--line); background:#fffdf7;
+    color:var(--ink); border-radius:999px; padding:.4em 1em; text-decoration:none; display:inline-flex; align-items:center; gap:.4em; transition:border-color .15s, color .15s, background .15s; white-space:nowrap; }
+  .act:hover { border-color:var(--carnation); color:var(--carnation-2); }
+  .act.primary { background:linear-gradient(180deg,var(--gold-lite),var(--gold)); border-color:var(--gold-deep); color:#4a3a12; }
+  .act.primary:hover { color:#4a3a12; filter:brightness(1.03); }
+  .act.copied { border-color:var(--leaf); color:var(--leaf-deep); }
+
+  .none { font-family:var(--serif); font-style:italic; color:var(--ink-soft); text-align:center; margin:2rem auto; line-height:1.8; }
+  .none a { color:var(--gold-deep); }
   .err { color:var(--carnation-2); font-family:var(--serif); font-style:italic; min-height:1.2em; text-align:center; }
-  .spin { font-family:var(--serif); font-style:italic; color:var(--ink-soft); text-align:center; }
+  .spin { font-family:var(--serif); font-style:italic; color:var(--ink-soft); text-align:center; margin:2rem; }
 </style>
 </head>
 <body>
@@ -74,52 +111,55 @@
   </div>
 </header>
 
-<div class="stage" id="stage" style="align-items:flex-start; padding-top:1rem;">
+<div class="stage" id="stage" style="align-items:flex-start; padding-top:.5rem;">
   <div class="wrap">
     <div class="head">
       <div class="flower" id="headFlower"></div>
       <h1>My books</h1>
-      <p id="headSub">Every Florilège book you've saved to your account — in one place, on any device.</p>
+      <p id="headSub">Every Florilège book you've saved to your account — gathered in one place, on any device.</p>
     </div>
 
     <!-- SIGN-IN GATE -->
     <div class="gate" id="gate" hidden>
-      <div class="sheet card">
-        <p style="font-family:var(--body);color:var(--ink-soft);margin:.2rem 0 1.1rem;">
-          Sign in with the Google account you used to save your books.</p>
+      <div class="flower" id="gateFlower"></div>
+      <div class="sheet gcard">
+        <h2>Find your books</h2>
+        <p>Sign in with the Google account you used to save them.</p>
         <button class="btn btn--gold" id="googleBtn" type="button">Sign in with Google</button>
-        <div class="err" id="gateErr" style="margin-top:.8rem;"></div>
+        <div class="err" id="gateErr" style="margin-top:.9rem;"></div>
       </div>
     </div>
 
-    <!-- LOADING -->
-    <p class="spin" id="loading" hidden>Loading your books…</p>
+    <p class="spin" id="loading" hidden>Gathering your books…</p>
 
-    <!-- BOOKS -->
-    <div class="grid" id="grid" hidden></div>
+    <div class="shelf" id="shelf" hidden></div>
+
     <p class="none" id="empty" hidden>No books saved to this account yet.
-       <br><a href="/create" style="color:var(--gold-deep);">Make one →</a></p>
+       <br><a href="/create">Make one →</a></p>
   </div>
 </div>
 
 <script type="module">
 import { startPetals, escapeHTML } from './assets/theme.js';
 import { flowerSVG } from './assets/flowers.js';
+import { emblemSVG } from './assets/majors.js';
 import {
   watchAuth, googleSignIn, signOut, isSignedInAccount,
   finishPendingClaim, listMyBooks
 } from './assets/firebase-init.js';
 
-startPetals(8);
+startPetals(7);
 document.getElementById('barMark').innerHTML = flowerSVG('carnation', { size:30 });
-document.getElementById('headFlower').innerHTML = flowerSVG('tulip', { size:84 });
+document.getElementById('headFlower').innerHTML = flowerSVG('tulip', { size:78 });
+document.getElementById('gateFlower').innerHTML = flowerSVG('carnation', { size:90 });
 
-const gate   = document.getElementById('gate');
-const gateErr= document.getElementById('gateErr');
-const loading= document.getElementById('loading');
-const grid   = document.getElementById('grid');
-const empty  = document.getElementById('empty');
-const outBtn = document.getElementById('outBtn');
+const gate    = document.getElementById('gate');
+const gateErr = document.getElementById('gateErr');
+const loading = document.getElementById('loading');
+const shelf   = document.getElementById('shelf');
+const empty   = document.getElementById('empty');
+const outBtn  = document.getElementById('outBtn');
+const headSub = document.getElementById('headSub');
 let loaded = false;
 
 document.getElementById('googleBtn').addEventListener('click', async ()=>{
@@ -128,69 +168,90 @@ document.getElementById('googleBtn').addEventListener('click', async ()=>{
   catch(e){
     const c = (e && e.code) || '';
     if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') return;
-    gateErr.textContent = "Couldn't sign in just now. Please try again.";
+    gateErr.textContent = (c === 'auth/unauthorized-domain')
+      ? "This site isn't authorised for sign-in yet."
+      : "Couldn't sign in just now. Please try again.";
   }
 });
 outBtn.addEventListener('click', ()=> signOut().then(()=>location.reload()));
 
-function show(elsHidden) {
-  gate.hidden = !elsHidden.gate;
-  loading.hidden = !elsHidden.loading;
-  grid.hidden = !elsHidden.grid;
-  empty.hidden = !elsHidden.empty;
-  outBtn.hidden = !elsHidden.out;
+function show({ gate:g, loading:l, shelf:s, empty:e, out }) {
+  gate.hidden = !g; loading.hidden = !l; shelf.hidden = !s; empty.hidden = !e; outBtn.hidden = !out;
 }
 
 watchAuth(async (user)=>{
-  if (!isSignedInAccount()) {            // signed out or anonymous
-    loaded = false;
-    show({ gate:true });
-    return;
-  }
-  if (loaded) return;                    // already rendered for this session
+  if (!isSignedInAccount()) { loaded = false; show({ gate:true }); return; }
+  if (loaded) return;
   loaded = true;
   show({ loading:true, out:true });
-  try { await finishPendingClaim(); }    // complete any hand-off from the success page
-  catch(_){}
+  try { await finishPendingClaim(); } catch(_){}
   let books = [];
   try { books = await listMyBooks(); }
-  catch(e){ loading.hidden = true; gateErr.textContent=''; grid.hidden=true;
-            empty.hidden=false; empty.textContent='Could not load your books — please reload.'; return; }
+  catch(e){ show({ empty:true, out:true }); empty.textContent = 'Could not load your books — please reload.'; return; }
   render(books);
 });
 
+function coverHTML(b){
+  const color = b.flowerColor || 'var(--carnation)';
+  let sym = '';
+  if (b.coverSymbol === 'emblem') sym = emblemSVG(b.emblem || 'cap', { size:120, color });
+  else if (b.coverSymbol === 'none') sym = '';
+  else sym = flowerSVG(b.flower || 'carnation', { size:120, color });
+  const nameClass = b.nameScript === 'arabic' ? 'arabic' : 'latin';
+  return `
+    <div class="mini">
+      ${sym ? `<div class="sym">${sym}</div>` : ''}
+      <div class="nm ${nameClass}">${escapeHTML(b.recipientName || 'A book')}</div>
+      <div class="cls">Class of</div>
+      <div class="yr">${escapeHTML(b.year || '')}</div>
+    </div>`;
+}
+
 function render(books){
-  if (!books.length) { show({ empty:true, out:true }); return; }
-  show({ grid:true, out:true });
+  if (!books.length){ show({ empty:true, out:true }); return; }
+  show({ shelf:true, out:true });
+  headSub.innerHTML = `<span class="count">${books.length} book${books.length>1?'s':''}</span> saved to your account.`;
   const base = location.origin;
-  grid.innerHTML = '';
+  shelf.innerHTML = '';
+
   for (const b of books){
     let key = '';
     try { key = localStorage.getItem('keepsake_key_'+b.id) || ''; } catch(_){}
-    const friend = `${base}/a/${b.id}`;
-    const book   = `${base}/b/${b.id}`;
-    const manage = `${base}/m/${b.id}`;
     const active = b.status === 'active';
-    const recip = key
-      ? `For the recipient — key: <span class="keychip">${escapeHTML(key)}</span>`
-      : `For the recipient — plus the key you chose`;
+    const friend = `${base}/a/${b.id}`;
+    const recipient = `${base}/b/${b.id}`;
+    const manage = `${base}/m/${b.id}`;
 
     const card = document.createElement('div');
     card.className = 'sheet bk';
     card.innerHTML = `
-      <p class="who">${escapeHTML(b.recipientName || 'A book')}<span class="badge ${active?'active':'pending'}">${active?'ready':'pending'}</span></p>
-      <p class="meta">${escapeHTML(b.major || (b.year ? ('Class of '+b.year) : ''))}</p>
-      ${active ? `
-        <div class="l"><button class="copy" data-c="${friend}">copy</button><b>Share with friends (to add pages)</b>${friend}</div>
-        <div class="l"><button class="copy" data-c="${book}">copy</button><b>${recip}</b>${book}</div>
-        ${b.hasManageKey ? `<div class="l"><button class="copy" data-c="${manage}">copy</button><b>For you — remove pages (your management key)</b>${manage}</div>` : ''}
-        <a class="open" href="/b/${b.id}">Open the book →</a>
-      ` : `<p class="meta">This book is still being confirmed. Refresh in a minute.</p>`}`;
-    grid.appendChild(card);
+      ${coverHTML(b)}
+      <div class="info">
+        <p class="who">${escapeHTML(b.recipientName || 'A book')}</p>
+        ${b.major ? `<p class="major">${escapeHTML(b.major)}</p>` : ''}
+        <span class="badge ${active?'active':'pending'}">${active?'Ready to share':'Payment pending'}</span>
+        ${active ? `
+          <p class="keyline">${ key
+            ? `Recipient's key: <span class="keychip">${escapeHTML(key)}</span>`
+            : `The recipient also needs the key you chose.` }</p>
+          <div class="actions">
+            <a class="act primary" href="/b/${b.id}">Open book</a>
+            <button class="act" data-copy="${friend}">Friends' link</button>
+            <button class="act" data-copy="${recipient}">Recipient link</button>
+            ${b.hasManageKey ? `<a class="act" href="/m/${b.id}">Manage pages</a>` : ''}
+          </div>
+        ` : `<p class="keyline">This book is still being confirmed. Refresh in a minute and it'll be ready to share.</p>`}
+      </div>`;
+    shelf.appendChild(card);
   }
-  grid.querySelectorAll('.copy').forEach(btn=>{
+
+  shelf.querySelectorAll('.act[data-copy]').forEach(btn=>{
+    const label = btn.textContent;
     btn.addEventListener('click', ()=>{
-      navigator.clipboard.writeText(btn.dataset.c).then(()=>{ btn.textContent='copied'; setTimeout(()=>btn.textContent='copy',1500); });
+      navigator.clipboard.writeText(btn.dataset.copy).then(()=>{
+        btn.classList.add('copied'); btn.textContent = 'Copied ✓';
+        setTimeout(()=>{ btn.classList.remove('copied'); btn.textContent = label; }, 1600);
+      });
     });
   });
 }
