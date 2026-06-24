@@ -40,6 +40,8 @@ const fnDeletePage    = httpsCallable(functions, "deletePage");
 const fnStartClaim    = httpsCallable(functions, "startClaim");
 const fnFinishClaim   = httpsCallable(functions, "finishClaim");
 const fnDeleteBook    = httpsCallable(functions, "deleteBook");
+const fnAdminList     = httpsCallable(functions, "adminListBooks");
+const fnAdminDelete   = httpsCallable(functions, "adminDeleteBook");
 
 const PENDING_CLAIM = "florilege_pending_claim";
 
@@ -226,4 +228,13 @@ export async function deletePage(bookId, msgId) {
 export async function deleteBook(bookId) {
   await fnDeleteBook({ bookId });
   try { localStorage.removeItem('keepsake_key_' + bookId); } catch (_) {}
+}
+
+/* ---------- admin (allowlisted): site-wide moderation ---------- */
+export async function adminListBooks() {
+  const res = await fnAdminList({});
+  return res.data; // { books, total }
+}
+export async function adminDeleteBook(bookId) {
+  await fnAdminDelete({ bookId });
 }

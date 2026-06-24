@@ -52,6 +52,20 @@ const PAYMENTS_ENABLED = false;   // Florilège is free — books activate on cr
    Stored in functions/.env (which is gitignored) — never committed, never sent to browsers. */
 const OWNER_CODE = process.env.OWNER_CODE || "";
 
+/* Site admins — the Google accounts allowed into the /console moderation view.
+   Comma-separated emails in functions/.env (gitignored), e.g.
+     ADMIN_EMAILS=you@gmail.com,teammate@gmail.com
+   Empty → nobody is an admin (the console denies everyone), a safe default. */
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
+  .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+
+/* true only for a signed-in caller whose verified Google email is allowlisted */
+function isAdmin(request) {
+  const t = request.auth && request.auth.token;
+  if (!t || !t.email || t.email_verified !== true) return false;
+  return ADMIN_EMAILS.includes(String(t.email).toLowerCase());
+}
+
 /* ---------- email the buyer their links after payment ----------
    Off until set up. To enable: create a Gmail App Password (Google account →
    Security → 2-Step Verification → App passwords), then:
@@ -387,6 +401,18 @@ exports.deletePage = onCall(guard(async (request) => {
    books (e.g. unfinished ones left over from the paid era).
    data: { bookId }
    ============================================================ */
+/* shared wipe: remove every Storage object under the book, then the doc + all
+   subcollections (messages, private/content, private/keys). Used by the owner
+   delete and the admin delete. */
+async function wipeBook(bookId) {
+  const ref = db.doc(`books/${bookId}`);
+  // best-effort: a Storage hiccup must not block the Firestore cleanup.
+  try {
+    await admin.storage().bucket().deleteFiles({ prefix: `books/${bookId}/` });
+  } catch (e) { console.error("wipeBook: storage cleanup failed", bookId, e); }
+  await db.recursiveDelete(ref);
+}
+
 exports.deleteBook = onCall(guard(async (request) => {
   const uid = request.auth && request.auth.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Sign in first.");
@@ -399,14 +425,48 @@ exports.deleteBook = onCall(guard(async (request) => {
   if (snap.data().ownerUid !== uid)
     throw new HttpsError("permission-denied", "Only the owner can delete this book.");
 
-  // Remove every Storage object under this book (friend submissions + owner
-  // photos). Best-effort: a Storage hiccup must not block the Firestore cleanup.
-  try {
-    await admin.storage().bucket().deleteFiles({ prefix: `books/${bookId}/` });
-  } catch (e) { console.error("deleteBook: storage cleanup failed", bookId, e); }
+  await wipeBook(bookId);
+  return { ok: true };
+}));
 
-  // Recursively delete the book doc + all subcollections (messages, private/*).
-  await db.recursiveDelete(ref);
+/* ============================================================
+   adminListBooks / adminDeleteBook — site-wide moderation view.
+   Restricted to allowlisted admin accounts (ADMIN_EMAILS). The
+   listing uses the Admin SDK so it can read every book regardless
+   of owner, which the client SDK's rules never allow.
+   ============================================================ */
+exports.adminListBooks = onCall(guard(async (request) => {
+  if (!isAdmin(request)) throw new HttpsError("permission-denied", "Admins only.");
+
+  const snap = await db.collection("books").orderBy("createdAt", "desc").get();
+  const books = snap.docs.map((d) => {
+    const b = d.data() || {};
+    return {
+      id: d.id,
+      recipientName: b.recipientName || "",
+      ownerEmail: b.ownerEmail || null,
+      ownerUid: b.ownerUid || null,
+      status: b.status || "pending",
+      major: b.major || "",
+      year: b.year || "",
+      flower: b.flower || "carnation",
+      flowerColor: b.flowerColor || "#D2588A",
+      coverSymbol: b.coverSymbol || "flower",
+      emblem: b.emblem || "cap",
+      nameScript: b.nameScript || "latin",
+      hasManageKey: !!b.hasManageKey,
+      createdAtMs: (b.createdAt && b.createdAt.toMillis) ? b.createdAt.toMillis() : null,
+      paidAtMs: (b.paidAt && b.paidAt.toMillis) ? b.paidAt.toMillis() : null,
+    };
+  });
+  return { books, total: books.length };
+}));
+
+exports.adminDeleteBook = onCall(guard(async (request) => {
+  if (!isAdmin(request)) throw new HttpsError("permission-denied", "Admins only.");
+  const { bookId } = request.data || {};
+  if (!bookId) throw new HttpsError("invalid-argument", "Missing bookId.");
+  await wipeBook(bookId);
   return { ok: true };
 }));
 

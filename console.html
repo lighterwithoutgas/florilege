@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/">
+<script>
+  const firebaseDomains = ["graduation-abd07.web.app", "graduation-abd07.firebaseapp.com"];
+  if (firebaseDomains.includes(window.location.hostname)) {
+    const canonicalUrl = new URL(window.location.href);
+    canonicalUrl.protocol = "https:"; canonicalUrl.hostname = "getflorilege.com"; canonicalUrl.port = "";
+    window.location.replace(canonicalUrl.toString());
+  }
+</script>
+<title>Console — all books · Florilège</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  .wrap { width:min(1080px,100%); }
+
+  /* brand bar */
+  .site-bar { position:sticky; top:0; z-index:40; backdrop-filter:blur(8px);
+    background:rgba(251,248,241,.72); border-bottom:1px solid rgba(216,205,182,.6); }
+  .site-bar .inner { width:min(1080px,92%); margin:0 auto; display:flex; align-items:center; justify-content:space-between; padding:.7rem 0; }
+  .site-bar .brand { display:flex; align-items:center; gap:.5rem; text-decoration:none; color:var(--ink); }
+  .site-bar .brand .mark { width:30px; height:30px; }
+  .site-bar .brand .name { font-family:var(--serif); font-weight:600; font-size:1.35rem; }
+  .site-bar .brand .name b { color:var(--carnation-2); }
+  .site-bar .bar-nav { display:flex; align-items:center; gap:1.1rem; }
+  .site-bar a.link, .site-bar button.link { font-family:var(--serif); font-size:1rem; color:var(--ink-soft); text-decoration:none; background:none; border:none; cursor:pointer; padding:0; }
+  .site-bar a.link:hover, .site-bar button.link:hover { color:var(--carnation); }
+
+  .head { text-align:center; margin:1.6rem 0 1.2rem; }
+  .head .flower { width:64px; margin:0 auto .2rem; }
+  .head h1 { font-family:var(--serif); font-weight:600; font-size:clamp(1.7rem,5vw,2.3rem); margin:.1rem 0; }
+  .head p { font-family:var(--body); color:var(--ink-soft); margin:.2rem auto; }
+  .head .stats { font-family:var(--serif); font-style:italic; color:var(--leaf-deep); }
+  .head .stats b { color:var(--ink); font-style:normal; }
+
+  /* gate / states */
+  .gate { width:min(440px,100%); margin:2rem auto; text-align:center; }
+  .gate .flower { width:84px; margin:0 auto .5rem; }
+  .gate h2 { font-family:var(--serif); font-weight:600; font-size:1.5rem; margin:.2rem 0; }
+  .gate p { font-family:var(--body); color:var(--ink-soft); margin:.3rem 0 1.3rem; line-height:1.6; }
+  .gate .gcard { padding:1.8rem; }
+  .denied { width:min(520px,100%); margin:2rem auto; text-align:center; padding:1.8rem; }
+  .denied h2 { font-family:var(--serif); font-weight:600; color:var(--carnation-2); margin:.2rem 0 .4rem; }
+  .denied p { font-family:var(--body); color:var(--ink-soft); line-height:1.7; }
+  .denied .who { font-family:var(--serif); font-style:italic; color:var(--leaf-deep); }
+  .spin { font-family:var(--serif); font-style:italic; color:var(--ink-soft); text-align:center; margin:2rem; }
+  .none { font-family:var(--serif); font-style:italic; color:var(--ink-soft); text-align:center; margin:2rem auto; }
+  .err { color:var(--carnation-2); font-family:var(--serif); font-style:italic; min-height:1.2em; text-align:center; }
+
+  /* toolbar */
+  .toolbar { display:flex; flex-wrap:wrap; gap:.7rem; align-items:center; justify-content:center; margin:0 auto 1.2rem; }
+  .toolbar .search { flex:1 1 280px; max-width:420px; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:#fffdf7; }
+  .seg button { border:none; background:transparent; padding:.4em 1em; font-family:var(--serif); cursor:pointer; color:var(--ink-soft); font-size:.92rem; }
+  .seg button.on { background:var(--carnation); color:#fff; }
+
+  /* list */
+  .list { display:grid; grid-template-columns:repeat(auto-fill,minmax(460px,1fr)); gap:1rem; }
+  @media (max-width:540px){ .list{ grid-template-columns:1fr; } }
+  .row { display:grid; grid-template-columns:54px 1fr auto; gap:1rem; padding:.9rem 1rem; align-items:center; }
+  @media (max-width:440px){ .row{ grid-template-columns:54px 1fr; } }
+
+  .mini { aspect-ratio:3/4; align-self:start; border-radius:4px; border:1px solid var(--paper-deep);
+    background:radial-gradient(120% 80% at 50% 30%, #fffdf8, var(--paper) 70%);
+    box-shadow:0 10px 22px -16px rgba(58,53,44,.7); position:relative;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:.3rem; overflow:hidden; }
+  .mini .sym { width:52%; line-height:0; }
+  .mini .nm { font-size:.5rem; line-height:1.1; word-break:break-word; margin-top:.1rem; }
+  .mini .nm.latin { font-family:var(--serif); font-weight:600; color:var(--ink); }
+  .mini .nm.arabic { font-family:var(--calig); font-size:.62rem; }
+
+  .meta { min-width:0; }
+  .meta .who { font-family:var(--serif); font-weight:600; font-size:1.1rem; color:var(--ink); margin:0; line-height:1.2; }
+  .meta .sub { font-family:var(--body); font-size:.82rem; color:var(--ink-soft); margin:.15rem 0 0; word-break:break-word; }
+  .meta .sub .em { color:var(--leaf-deep); }
+  .meta .anon { color:var(--gold-deep); font-style:italic; }
+  .meta .idline { font-family:var(--body); font-size:.72rem; color:#9a917f; margin:.15rem 0 0; }
+  .badge { display:inline-flex; align-items:center; gap:.4em; font-family:var(--body); font-size:.66rem; letter-spacing:.06em; text-transform:uppercase;
+    border-radius:999px; padding:.18em .65em; margin:.35rem .4rem 0 0; vertical-align:middle; }
+  .badge::before { content:""; width:.45em; height:.45em; border-radius:50%; }
+  .badge.active { background:#E7F0E6; color:#3f6b3a; border:1px solid #cfe2cd; }
+  .badge.active::before { background:#5a9152; }
+  .badge.pending { background:#FBF1DD; color:#8a6a1e; border:1px solid #ecdcb6; }
+  .badge.pending::before { background:#c79a2e; }
+
+  .rowacts { display:flex; flex-direction:column; gap:.4rem; align-items:stretch; }
+  @media (max-width:440px){ .rowacts{ grid-column:1 / -1; flex-direction:row; flex-wrap:wrap; } }
+  .act { font-family:var(--serif); font-size:.88rem; cursor:pointer; border:1px solid var(--line); background:#fffdf7;
+    color:var(--ink); border-radius:999px; padding:.32em .9em; text-decoration:none; text-align:center; white-space:nowrap;
+    transition:border-color .15s, color .15s, background .15s; }
+  .act:hover { border-color:var(--carnation); color:var(--carnation-2); }
+  .act.danger { color:var(--carnation-2); }
+  .act.danger:hover { border-color:var(--carnation-2); color:var(--carnation-2); background:#fdeef3; }
+  .confirm { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; padding-top:.3rem; }
+  .confirm .w { flex:1 1 100%; font-family:var(--body); font-size:.82rem; color:var(--carnation-2); }
+</style>
+</head>
+<body>
+<header class="site-bar">
+  <div class="inner">
+    <a class="brand" href="/"><span class="mark" id="barMark"></span><span class="name">Flori<b>lège</b></span></a>
+    <div class="bar-nav">
+      <a class="link" href="/my">My books</a>
+      <button class="link" id="outBtn" type="button" hidden>Sign out</button>
+    </div>
+  </div>
+</header>
+
+<div class="stage" id="stage" style="align-items:flex-start; padding-top:.5rem;">
+  <div class="wrap">
+    <div class="head">
+      <div class="flower" id="headFlower"></div>
+      <h1>Console</h1>
+      <p id="headSub">Every Florilège book on the site — for moderation.</p>
+    </div>
+
+    <!-- SIGN-IN GATE -->
+    <div class="gate" id="gate" hidden>
+      <div class="flower" id="gateFlower"></div>
+      <div class="sheet gcard">
+        <h2>Admin sign-in</h2>
+        <p>Sign in with an admin Google account to view all books.</p>
+        <button class="btn btn--gold" id="googleBtn" type="button">Sign in with Google</button>
+        <div class="err" id="gateErr" style="margin-top:.9rem;"></div>
+      </div>
+    </div>
+
+    <!-- NOT AUTHORISED -->
+    <div class="sheet denied" id="denied" hidden>
+      <h2>Not authorised</h2>
+      <p>This account isn’t on the admin list. You’re signed in as <span class="who" id="deniedWho"></span>.<br>
+         Ask the site owner to add your email to <code>ADMIN_EMAILS</code>, or
+         <button class="link" id="switchBtn" type="button" style="color:var(--carnation);text-decoration:underline;">sign in with a different account</button>.</p>
+    </div>
+
+    <p class="spin" id="loading" hidden>Gathering every book…</p>
+
+    <div id="panel" hidden>
+      <div class="toolbar">
+        <input class="input search" id="search" type="search" placeholder="Search name, email, or book id…">
+        <div class="seg" id="statusSeg">
+          <button type="button" data-s="all" class="on">All</button>
+          <button type="button" data-s="active">Active</button>
+          <button type="button" data-s="pending">Pending</button>
+        </div>
+        <button class="act" id="refreshBtn" type="button">Refresh</button>
+      </div>
+      <div class="list" id="list"></div>
+      <p class="none" id="noMatch" hidden>No books match your search.</p>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { startPetals, escapeHTML } from './assets/theme.js';
+import { flowerSVG } from './assets/flowers.js';
+import { emblemSVG } from './assets/majors.js';
+import {
+  watchAuth, googleSignIn, signOut, isSignedInAccount, currentUser,
+  adminListBooks, adminDeleteBook
+} from './assets/firebase-init.js';
+
+startPetals(6);
+document.getElementById('barMark').innerHTML = flowerSVG('carnation', { size:30 });
+document.getElementById('headFlower').innerHTML = flowerSVG('tulip', { size:64 });
+document.getElementById('gateFlower').innerHTML = flowerSVG('carnation', { size:84 });
+
+const gate    = document.getElementById('gate');
+const gateErr = document.getElementById('gateErr');
+const denied  = document.getElementById('denied');
+const loading = document.getElementById('loading');
+const panel   = document.getElementById('panel');
+const listEl  = document.getElementById('list');
+const noMatch = document.getElementById('noMatch');
+const outBtn  = document.getElementById('outBtn');
+const headSub = document.getElementById('headSub');
+const searchEl = document.getElementById('search');
+
+let loaded = false;
+let allBooks = [];
+let statusFilter = 'all';
+
+function show({ gate:g, denied:d, loading:l, panel:p, out }) {
+  gate.hidden = !g; denied.hidden = !d; loading.hidden = !l; panel.hidden = !p; outBtn.hidden = !out;
+}
+
+document.getElementById('googleBtn').addEventListener('click', async ()=>{
+  gateErr.textContent = '';
+  try { await googleSignIn(); }
+  catch(e){
+    const c = (e && e.code) || '';
+    if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') return;
+    gateErr.textContent = (c === 'auth/unauthorized-domain')
+      ? "This site isn't authorised for sign-in yet."
+      : "Couldn't sign in just now. Please try again.";
+  }
+});
+outBtn.addEventListener('click', ()=> signOut().then(()=>location.reload()));
+document.getElementById('switchBtn').addEventListener('click', ()=> signOut().then(()=> googleSignIn().catch(()=>{})));
+document.getElementById('refreshBtn').addEventListener('click', ()=> load(true));
+
+watchAuth(async ()=>{
+  if (!isSignedInAccount()) { loaded = false; show({ gate:true }); return; }
+  if (loaded) return;
+  loaded = true;
+  load(false);
+});
+
+async function load(force){
+  show({ loading:true, out:true });
+  let data;
+  try { data = await adminListBooks(); }
+  catch(e){
+    const c = (e && e.code) || (e && e.message) || '';
+    if (/permission-denied/.test(c)) {
+      const u = currentUser();
+      document.getElementById('deniedWho').textContent = (u && u.email) || 'this account';
+      show({ denied:true, out:true });
+    } else {
+      show({ panel:true, out:true });
+      headSub.textContent = 'Could not load books — please reload.';
+    }
+    return;
+  }
+  allBooks = data.books || [];
+  show({ panel:true, out:true });
+  headSub.innerHTML = statsLine(allBooks);
+  apply();
+}
+
+function statsLine(books){
+  const active = books.filter(b=>b.status==='active').length;
+  const pending = books.length - active;
+  return `<span class="stats"><b>${books.length}</b> book${books.length===1?'':'s'} · ${active} active · ${pending} pending</span>`;
+}
+
+function coverHTML(b){
+  const color = b.flowerColor || 'var(--carnation)';
+  let sym = '';
+  if (b.coverSymbol === 'emblem') sym = emblemSVG(b.emblem || 'cap', { size:80, color });
+  else if (b.coverSymbol === 'none') sym = '';
+  else sym = flowerSVG(b.flower || 'carnation', { size:80, color });
+  const nameClass = b.nameScript === 'arabic' ? 'arabic' : 'latin';
+  return `<div class="mini">${sym ? `<div class="sym">${sym}</div>` : ''}<div class="nm ${nameClass}">${escapeHTML(b.recipientName || 'A book')}</div></div>`;
+}
+
+function fmtDate(ms){
+  if (!ms) return 'unknown date';
+  try { return new Date(ms).toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' }); }
+  catch(_){ return 'unknown date'; }
+}
+
+function apply(){
+  const q = searchEl.value.trim().toLowerCase();
+  const rows = allBooks.filter(b=>{
+    if (statusFilter !== 'all' && b.status !== statusFilter) return false;
+    if (!q) return true;
+    return (b.recipientName||'').toLowerCase().includes(q)
+        || (b.ownerEmail||'').toLowerCase().includes(q)
+        || b.id.toLowerCase().includes(q)
+        || (b.major||'').toLowerCase().includes(q);
+  });
+  render(rows);
+}
+
+function render(books){
+  listEl.innerHTML = '';
+  noMatch.hidden = books.length > 0;
+  for (const b of books){
+    const active = b.status === 'active';
+    const owner = b.ownerEmail
+      ? `<span class="em">${escapeHTML(b.ownerEmail)}</span>`
+      : `<span class="anon">no account (anonymous)</span>`;
+    const card = document.createElement('div');
+    card.className = 'sheet row';
+    card.innerHTML = `
+      ${coverHTML(b)}
+      <div class="meta">
+        <p class="who">${escapeHTML(b.recipientName || 'A book')}</p>
+        <p class="sub">${b.major ? escapeHTML(b.major)+' · ' : ''}${escapeHTML(b.year || '')} · made ${fmtDate(b.createdAtMs)}</p>
+        <p class="sub">Owner: ${owner}</p>
+        <p class="idline">id ${escapeHTML(b.id)}</p>
+        <span class="badge ${active?'active':'pending'}">${active?'Active':'Pending'}</span>
+      </div>
+      <div class="rowacts">
+        <a class="act" href="/b/${encodeURIComponent(b.id)}" target="_blank" rel="noopener">Open</a>
+        <button class="act danger" data-del>Delete</button>
+      </div>`;
+    listEl.appendChild(card);
+    wireRow(card, b);
+  }
+}
+
+function wireRow(card, b){
+  const del = card.querySelector('[data-del]');
+  if (del) del.addEventListener('click', ()=> askDelete(card, b));
+}
+
+function askDelete(card, b){
+  const acts = card.querySelector('.rowacts');
+  const prev = acts.innerHTML;
+  acts.classList.add('confirm');
+  acts.innerHTML = `
+    <span class="w">Permanently delete ${escapeHTML(b.recipientName || 'this book')}’s book and everything in it? This can’t be undone.</span>
+    <button class="act danger" data-go>Delete forever</button>
+    <button class="act" data-cancel>Cancel</button>`;
+  acts.querySelector('[data-cancel]').addEventListener('click', ()=>{
+    acts.classList.remove('confirm'); acts.innerHTML = prev; wireRow(card, b);
+  });
+  acts.querySelector('[data-go]').addEventListener('click', async (e)=>{
+    const go = e.currentTarget; go.disabled = true; go.textContent = 'Deleting…';
+    try {
+      await adminDeleteBook(b.id);
+      allBooks = allBooks.filter(x=> x.id !== b.id);
+      headSub.innerHTML = statsLine(allBooks);
+      card.style.transition = 'opacity .3s'; card.style.opacity = '0';
+      setTimeout(()=>{ card.remove(); if (!listEl.children.length) noMatch.hidden = false; }, 300);
+    } catch(err){
+      go.disabled = false; go.textContent = 'Delete forever';
+      const w = acts.querySelector('.w'); if (w) w.textContent = "Couldn't delete just now — please try again.";
+    }
+  });
+}
+
+// toolbar wiring
+searchEl.addEventListener('input', apply);
+document.querySelectorAll('#statusSeg button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    statusFilter = btn.dataset.s;
+    document.querySelectorAll('#statusSeg button').forEach(x=>x.classList.toggle('on', x===btn));
+    apply();
+  });
+});
+</script>
+</body>
+</html>
