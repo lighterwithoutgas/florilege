@@ -5,6 +5,7 @@
     "ignore": [
       "firebase.json",
       "**/.*",
+      "**/.*/**",
       "**/node_modules/**",
       "functions/**",
       "graphify-out/**",
