@@ -18,6 +18,14 @@
       { "source": "/m/**", "destination": "/admin.html" },
       { "source": "/s/**", "destination": "/success.html" },
       { "source": "/my", "destination": "/my.html" }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      }
     ]
   },
   "functions": {
