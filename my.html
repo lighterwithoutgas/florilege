@@ -34,7 +34,7 @@
   .site-bar .brand .mark { width:30px; height:30px; }
   .site-bar .brand .name { font-family:var(--serif); font-weight:600; font-size:1.35rem; }
   .site-bar .brand .name b { color:var(--carnation-2); }
-  .site-bar .nav { display:flex; align-items:center; gap:1.1rem; }
+  .site-bar .bar-nav { display:flex; align-items:center; gap:1.1rem; }
   .site-bar a.link, .site-bar button.link { font-family:var(--serif); font-size:1rem; color:var(--ink-soft); text-decoration:none; background:none; border:none; cursor:pointer; padding:0; }
   .site-bar a.link:hover, .site-bar button.link:hover { color:var(--carnation); }
 
@@ -56,10 +56,15 @@
   .shelf { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); gap:1.4rem; }
   @media (max-width:520px){ .shelf{ grid-template-columns:1fr; } }
   .bk { display:grid; grid-template-columns:128px 1fr; gap:1.2rem; padding:1.2rem; align-items:stretch; }
-  @media (max-width:430px){ .bk{ grid-template-columns:1fr; } }
+  /* keep the card compact and horizontal on phones — a small cover beside the
+     details, never a full-width cover that dwarfs the card */
+  @media (max-width:430px){ .bk{ grid-template-columns:96px 1fr; gap:1rem; padding:1rem; } }
 
   /* mini cover (mirrors the create-page preview) */
-  .mini { aspect-ratio:3/4; border-radius:6px; border:1px solid var(--paper-deep);
+  /* align-self:start so the 3:4 aspect ratio sizes the cover from its column
+     width — without it, align-items:stretch makes the height drive the width and
+     the cover overflows its track into the details column. */
+  .mini { aspect-ratio:3/4; align-self:start; border-radius:6px; border:1px solid var(--paper-deep);
     background:radial-gradient(120% 80% at 50% 30%, #fffdf8, var(--paper) 70%);
     box-shadow:0 16px 34px -22px rgba(58,53,44,.7); position:relative;
     display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:.7rem; overflow:hidden; }
@@ -104,7 +109,7 @@
 <header class="site-bar">
   <div class="inner">
     <a class="brand" href="/"><span class="mark" id="barMark"></span><span class="name">Flori<b>lège</b></span></a>
-    <div class="nav">
+    <div class="bar-nav">
       <a class="link" href="/create">Make a book</a>
       <button class="link" id="outBtn" type="button" hidden>Sign out</button>
     </div>
