@@ -19,9 +19,9 @@
     window.location.replace(canonicalUrl.toString());
   }
 
-  const bookId = new URLSearchParams(window.location.search).get("b");
-  if (bookId && window.location.pathname.replace(/\/+$/, "") === "/book") {
-    window.location.replace(`/b/${encodeURIComponent(bookId)}`);
+  const qBookId = new URLSearchParams(window.location.search).get("b");
+  if (qBookId && window.location.pathname.replace(/\/+$/, "") === "/book") {
+    window.location.replace(`/b/${encodeURIComponent(qBookId)}`);
   }
 </script>
 <title>A Florilège book</title>

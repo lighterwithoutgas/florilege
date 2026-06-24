@@ -50,8 +50,8 @@
 <div class="stage">
   <div class="wrap">
     <div class="flower" id="flower"></div>
-    <h1 id="title">Confirming your payment…</h1>
-    <p class="sub" id="sub"><span class="spin">Just a moment while we finish your book.</span></p>
+    <h1 id="title">Finishing your book…</h1>
+    <p class="sub" id="sub"><span class="spin">Just a moment while we press the last page.</span></p>
     <div class="sheet card links" id="links" hidden></div>
     <div class="sheet card save" id="save" hidden>
       <h2>Keep this book for good</h2>
@@ -66,7 +66,7 @@
 <script type="module">
 import { getBookId, startPetals } from './assets/theme.js';
 import { flowerSVG } from './assets/flowers.js';
-import { getBookConfig, ensureAnon, saveBookToAccount } from './assets/firebase-init.js';
+import { getBookConfig, ensureAnon, saveBookToAccount, isSignedInAccount } from './assets/firebase-init.js';
 
 startPetals(8);
 document.getElementById('flower').innerHTML = flowerSVG('tulip', { size:96 });
@@ -86,8 +86,8 @@ if (!bookId) {
 
 async function run() {
   try { await ensureAnon(); } catch(e){}
-  // the book is created the instant you pay, but Stripe's confirmation
-  // (the webhook) can take a few seconds — poll until it's active.
+  // the book is created and active the instant you confirm — poll briefly in
+  // case the read races just ahead of the write.
   const deadline = Date.now() + 40000;
   let cfg = null;
   while (Date.now() < deadline) {
@@ -95,10 +95,10 @@ async function run() {
     if (cfg && cfg.status === 'active') return showLinks(cfg);
     await sleep(2000);
   }
-  // still not active — payment may still be settling
+  // still not showing — keep checking
   titleEl.textContent = 'Almost there…';
-  subEl.innerHTML = "Your payment is still being confirmed. This page will keep checking — " +
-    "or refresh in a minute. If it doesn't appear, your card was not charged.";
+  subEl.innerHTML = "Your book is being finished. This page will keep checking — " +
+    "or refresh in a minute.";
   keepTrying();
 }
 
@@ -140,13 +140,24 @@ function showLinks(cfg) {
   // keep the key in localStorage — it's hashed on the server and cannot be recovered,
   // so this is the only place the creator can look it up again.
 
-  // offer to save the book to a durable account (optional — never blocks anything)
-  document.getElementById('save').hidden = false;
+  // the book's account card. Books are made while signed in, so it's usually
+  // already saved — point them straight to their dashboard. (The anonymous-save
+  // path is kept for any older book that isn't on an account yet.)
+  const saveCard = document.getElementById('save');
+  saveCard.hidden = false;
+  if (isSignedInAccount()) {
+    saveCard.querySelector('h2').textContent = 'Saved to your account';
+    saveCard.querySelector('p').textContent =
+      "This book is already in your account — open “My books” to find it on any device.";
+    document.getElementById('saveBtn').textContent = 'Go to my books';
+  }
 }
 
 const saveBtn = document.getElementById('saveBtn');
 const saveNote = document.getElementById('saveNote');
 saveBtn.addEventListener('click', async ()=>{
+  // already on a real account → it's saved; just take them to the dashboard
+  if (isSignedInAccount()) { location.href = '/my'; return; }
   saveBtn.disabled = true; saveNote.textContent = 'Opening Google…';
   try {
     await saveBookToAccount(bookId);

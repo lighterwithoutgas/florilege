@@ -10,9 +10,10 @@ opens it with a secret key — the whole class, pressed into one book.
 
 ## How it works
 
-1. **Make a book** (`/create`) — pick the recipient's name, faculty/major theme, a
-   flower (or major emblem), colours, a dedication, a "then & now" photo, and a
-   recipient key. Pay €5 (Stripe Checkout) and the book is created.
+1. **Make a book** (`/create`) — sign in with Google, then pick the recipient's name,
+   faculty/major theme, a flower (or major emblem), colours, a dedication, a
+   "then & now" photo, and a recipient key. It's **free** — the book is created the
+   moment you confirm. Each account may make **up to two books**.
 2. **Friends add pages** (`/a/<id>`) — one shared link; each friend presses in their
    own page (text + optional photo + optional voice note).
 3. **The graduate opens it** (`/b/<id>`) — enters the secret key and flips through
@@ -37,15 +38,15 @@ A short example with no key: **`/book?demo=1`**.
 - **Firebase Hosting** (static, clean URLs + rewrites for the short paths)
 - **Cloud Functions (gen 2, Node)** — `startCheckout`, `stripeWebhook`, `redeemKey`, `deletePage`
 - **Cloud Firestore** + **Cloud Storage** (rules-enforced)
-- **Firebase Auth** — anonymous (friends/owner) + custom tokens for the `viewer`/`caretaker` roles
-- **Stripe Checkout** (hosted) with a webhook that activates the paid book
+- **Firebase Auth** — Google sign-in (book owners) + anonymous (friends) + custom tokens for the `viewer`/`caretaker` roles
+- **Free**, capped at two books per account (server-enforced in `startCheckout`). Stripe Checkout code is retained but dormant (`PAYMENTS_ENABLED = false`) for easy re-enabling.
 - Vanilla HTML / CSS / JS (no framework)
 
 ## Security model
 
 - Recipient/management keys are **hashed server-side** (scrypt + salt) — never stored or sent in plaintext.
 - `redeemKey` verifies a key server-side and mints a **custom token** scoped to one book + role; the Firestore rules check those claims.
-- A book is unusable until **paid** (`status: "active"`); friends can only post to active books; brute-force is throttled.
+- Books are created **active** (free); friends can only post to active books; brute-force is throttled. Books may only be made from a real (Google) account, and each account is capped at two — both enforced server-side.
 - All real secrets live in **Google Secret Manager / `functions/.env`** — never in this repo.
 
 ## Setup
@@ -71,9 +72,10 @@ firebase functions:secrets:set GMAIL_APP_PASSWORD     # 16-char Gmail app passwo
 
 Feature flags in `functions/index.js`:
 
-- `PAYMENTS_ENABLED` — `false` creates books for free (dev); `true` requires Stripe payment.
-- `EMAIL_ENABLED` — emails buyers their links after payment (needs the Gmail secrets).
-- `OWNER_CODE` (from `.env`) — visit `/create?owner=<code>` to create books for free.
+- `PAYMENTS_ENABLED` — `false` (current) makes the site free; `true` re-enables Stripe payment.
+- `MAX_BOOKS_PER_USER` — free-tier cap per account (default `2`).
+- `EMAIL_ENABLED` — emails owners their links after payment (only fires in paid mode; needs the Gmail secrets).
+- `OWNER_CODE` (from `.env`) — visit `/create?owner=<code>` to lift the two-book cap for yourself.
 
 Deploy:
 

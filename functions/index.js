@@ -23,8 +23,14 @@ const db = admin.firestore();
 // deploy marker: bind corrected STRIPE_SECRET (full key)
 
 /* ---------- pricing ---------- */
-const PRICE_CENTS = 500;      // €5.00 — change here
+const PRICE_CENTS = 500;      // €5.00 — only used if PAYMENTS_ENABLED is turned back on
 const CURRENCY = "eur";
+
+/* ---------- free-tier cap ----------
+   Florilège is free. To keep it from being abused into an unlimited book farm,
+   each (real, signed-in) account may create at most this many books. The site
+   owner can lift the cap for themselves with the OWNER_CODE below. */
+const MAX_BOOKS_PER_USER = 2;
 
 /* ============================================================
    PAYMENTS — master switch.
@@ -39,7 +45,7 @@ const CURRENCY = "eur";
         (event: checkout.session.completed) and re-set the webhook secret
    Also flip the button label in create.html back to "Pay €5…".
    ============================================================ */
-const PAYMENTS_ENABLED = true;
+const PAYMENTS_ENABLED = false;   // Florilège is free — books activate on creation.
 
 /* Secret owner code — lets YOU create books for free.
    Visit /create?owner=THE_CODE and the payment step is skipped.
@@ -183,14 +189,31 @@ exports.startCheckout = onCall(PAYMENTS_ENABLED ? { secrets: [STRIPE_SECRET] } :
   if (!uid) throw new HttpsError("unauthenticated", "Could not start. Please reload and try again.");
 
   const { config = {}, viewerKey, caretakerKey, origin, ownerCode } = request.data || {};
+
+  // a valid owner code lifts the free-tier cap for the site owner
+  const ownerFree = typeof ownerCode === "string" && ownerCode.length > 0 && ownerCode === OWNER_CODE;
+
+  // books may only be made from a real (Google) account, never an anonymous
+  // throwaway — that's what makes the per-account book limit meaningful.
+  const provider = request.auth.token &&
+                   request.auth.token.firebase &&
+                   request.auth.token.firebase.sign_in_provider;
+  if (provider === "anonymous" && !ownerFree)
+    throw new HttpsError("unauthenticated", "Please sign in with Google to make a book.");
+
+  // free for everyone, but capped at MAX_BOOKS_PER_USER per account
+  if (!ownerFree) {
+    const mine = await db.collection("books").where("ownerUid", "==", uid).get();
+    if (mine.size >= MAX_BOOKS_PER_USER)
+      throw new HttpsError("resource-exhausted",
+        `You've reached the limit of ${MAX_BOOKS_PER_USER} books on your account.`);
+  }
+
   const { publicDoc, privateContent, keys, recipientName } =
     buildBookDocs(uid, config, viewerKey, caretakerKey);
 
   const bookId = newId();
   const base = cleanOrigin(origin);
-
-  // owner free-create: a valid owner code skips payment
-  const ownerFree = typeof ownerCode === "string" && ownerCode.length > 0 && ownerCode === OWNER_CODE;
 
   // ----- FREE: payments globally off, OR the owner code was supplied -----
   if (!PAYMENTS_ENABLED || ownerFree) {

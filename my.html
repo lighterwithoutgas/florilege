@@ -229,7 +229,7 @@ function render(books){
       <div class="info">
         <p class="who">${escapeHTML(b.recipientName || 'A book')}</p>
         ${b.major ? `<p class="major">${escapeHTML(b.major)}</p>` : ''}
-        <span class="badge ${active?'active':'pending'}">${active?'Ready to share':'Payment pending'}</span>
+        <span class="badge ${active?'active':'pending'}">${active?'Ready to share':'Still finishing'}</span>
         ${active ? `
           <p class="keyline">${ key
             ? `Recipient's key: <span class="keychip">${escapeHTML(key)}</span>`

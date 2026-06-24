@@ -7,6 +7,7 @@
       "**/.*",
       "**/node_modules/**",
       "functions/**",
+      "graphify-out/**",
       "README.md",
       "*.rules"
     ],
