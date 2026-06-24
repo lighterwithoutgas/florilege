@@ -31,9 +31,13 @@ service cloud.firestore {
 
     match /books/{bookId} {
       // public theme doc: any signed-in user (incl. anonymous friends) may read,
-      // so the submission page can render the right flower/name. No listing.
+      // so the submission page can render the right flower/name.
       allow get: if signedIn();
-      allow list: if false;
+      // listing is owner-only: the "My books" dashboard queries
+      // books where ownerUid == the signed-in user, and the rule is
+      // checked per returned document, so a query without that filter
+      // is rejected. Strangers can never enumerate other people's books.
+      allow list: if signedIn() && resource.data.ownerUid == request.auth.uid;
       // books are created only by the startCheckout Cloud Function (Admin SDK).
       allow create: if false;
       allow update: if isOwner(bookId);

@@ -23,3 +23,6 @@ gp.*
 .DS_Store
 Thumbs.db
 .vscode/
+
+# tool output
+graphify-out/

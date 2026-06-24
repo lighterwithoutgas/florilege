@@ -118,6 +118,9 @@ async function sendLinksEmail(to, bookId) {
       <p><b>Share with friends (to add their pages):</b><br><a href="${friends}">${friends}</a></p>
       <p><b>For ${name} (the recipient):</b><br><a href="${recipient}">${recipient}</a><br>
          Give them the <b>key you chose</b> when you made the book.</p>
+      <p style="background:#FBF3F6;border:1px solid #EBD3DD;border-radius:6px;padding:.7rem .9rem">
+         <b>Keep this book for good →</b> <a href="${base}/my">Save it to your account</a> with Google,
+         so you can find it on any device and manage it without hunting for this email.</p>
       <p style="color:#6B6354;font-size:.9rem">Made with pressed flowers and good wishes — Florilège.</p>
     </div>`;
   await tx.sendMail({
@@ -351,5 +354,73 @@ exports.deletePage = onCall(guard(async (request) => {
     }
     await msgRef.delete();
   }
+  return { ok: true };
+}));
+
+/* ============================================================
+   startClaim / finishClaim — attach a book to the buyer's real
+   (Google) account.
+
+   A book is created under a throwaway *anonymous* uid. When the
+   buyer signs in with Google, the browser tries to LINK that
+   anonymous account to Google (which keeps the same uid — nothing
+   to do here). But if they already have a Florilège account from a
+   previous purchase, linking fails and they end up signed into that
+   *existing* account, whose uid differs from the book's ownerUid.
+   These two calls hand ownership across that gap without ever
+   letting a stranger claim someone else's book:
+
+     1) startClaim  — called while still the anonymous OWNER. Mints a
+        one-time token (stored hashed on the locked keys doc) that
+        proves "whoever holds this owned the book moments ago".
+     2) finishClaim — called after signing into the real account.
+        Possession of the token transfers ownerUid to the caller.
+
+   The token lives only ~10 minutes and is single-use.
+   ============================================================ */
+exports.startClaim = onCall(guard(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Please reload and try again.");
+  const { bookId } = request.data || {};
+  if (!bookId) throw new HttpsError("invalid-argument", "Missing bookId.");
+
+  const book = await db.doc(`books/${bookId}`).get();
+  if (!book.exists) throw new HttpsError("not-found", "No such book.");
+  if (book.data().ownerUid !== uid)
+    throw new HttpsError("permission-denied", "Only the current owner can move this book.");
+
+  const token = randomBytes(24).toString("base64url");
+  await db.doc(`books/${bookId}/private/keys`).set({
+    claim: {
+      ...hashKey(token),
+      expires: admin.firestore.Timestamp.fromMillis(Date.now() + 10 * 60 * 1000),
+    },
+  }, { merge: true });
+  return { token };
+}));
+
+exports.finishClaim = onCall(guard(async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Please sign in and try again.");
+  const { bookId, token } = request.data || {};
+  if (!bookId || !token) throw new HttpsError("invalid-argument", "Missing bookId or token.");
+
+  const keysRef = db.doc(`books/${bookId}/private/keys`);
+  const snap = await keysRef.get();
+  const claim = snap.exists && snap.data().claim;
+  if (!claim) throw new HttpsError("failed-precondition", "This book can't be claimed right now.");
+  if (!claim.expires || claim.expires.toMillis() < Date.now()) {
+    await keysRef.update({ claim: admin.firestore.FieldValue.delete() });
+    throw new HttpsError("deadline-exceeded", "This claim expired. Please try again.");
+  }
+  if (!verifyKey(token, claim.salt, claim.hash))
+    throw new HttpsError("permission-denied", "Invalid claim token.");
+
+  const email = (request.auth.token && request.auth.token.email) || null;
+  await db.doc(`books/${bookId}`).set({
+    ownerUid: uid,
+    ownerEmail: email ? String(email).toLowerCase() : null,
+  }, { merge: true });
+  await keysRef.update({ claim: admin.firestore.FieldValue.delete() });
   return { ok: true };
 }));

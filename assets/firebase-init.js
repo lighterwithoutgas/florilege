@@ -4,10 +4,11 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getAuth, signInAnonymously, signInWithCustomToken, signInWithPopup,
+  linkWithPopup, signInWithCredential,
   GoogleAuthProvider, onAuthStateChanged, signOut as fbSignOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, addDoc, doc, getDoc,
+  getFirestore, collection, addDoc, doc, getDoc, getDocs, where,
   onSnapshot, query, orderBy, serverTimestamp, updateDoc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
@@ -36,12 +37,17 @@ const functions = getFunctions(app);
 const fnStartCheckout = httpsCallable(functions, "startCheckout");
 const fnRedeemKey     = httpsCallable(functions, "redeemKey");
 const fnDeletePage    = httpsCallable(functions, "deletePage");
+const fnStartClaim    = httpsCallable(functions, "startClaim");
+const fnFinishClaim   = httpsCallable(functions, "finishClaim");
+
+const PENDING_CLAIM = "florilege_pending_claim";
 
 /* ---------- auth ---------- */
 export function googleSignIn() { return signInWithPopup(auth, new GoogleAuthProvider()); }
 export function watchAuth(cb) { return onAuthStateChanged(auth, cb); }
 export function signOut() { return fbSignOut(auth); }
 export function currentUser() { return auth.currentUser; }
+export function isSignedInAccount() { const u = auth.currentUser; return !!u && !u.isAnonymous; }
 export function ensureAnon() {
   return new Promise((resolve, reject) => {
     const off = onAuthStateChanged(auth, (u) => {
@@ -89,6 +95,84 @@ export async function attachThenPhoto(bookId, file) {
   await updateDoc(doc(db, `books/${bookId}`), { hasThen: true });
   await setDoc(doc(db, `books/${bookId}/private/content`), { thenPhotoURL: url }, { merge: true });
   return url;
+}
+
+/* ---------- buyer: save a book to a real (Google) account ----------
+   Turns the throwaway anonymous owner into a durable Google account so
+   the buyer can find and manage the book on any device.
+
+   Returns one of: 'already' (was already signed in), 'linked' (the
+   anonymous account became this Google account — same uid, nothing else
+   to do), or 'claimed' (the book was handed to a pre-existing account).
+
+   The 'claimed' path stashes a one-time token in localStorage and signs
+   into the existing account; finishPendingClaim() (run on the dashboard)
+   completes the hand-off, so a hiccup mid-switch can always be retried. */
+export async function saveBookToAccount(bookId) {
+  await ensureAnon();
+  const u = auth.currentUser;
+  if (u && !u.isAnonymous) {            // already a real account → book is already theirs
+    await markOwnerEmail(bookId);
+    return "already";
+  }
+  const provider = new GoogleAuthProvider();
+  try {
+    await linkWithPopup(auth.currentUser, provider);  // anon → Google, uid preserved
+    await markOwnerEmail(bookId);
+    return "linked";
+  } catch (e) {
+    if (e && e.code === "auth/credential-already-in-use") {
+      const cred = GoogleAuthProvider.credentialFromError(e);
+      if (!cred) throw e;
+      const { data } = await fnStartClaim({ bookId });   // proof minted while still owner
+      try { localStorage.setItem(PENDING_CLAIM, JSON.stringify({ bookId, token: data.token })); } catch (_) {}
+      await signInWithCredential(auth, cred);            // now their existing account
+      await finishPendingClaim();
+      return "claimed";
+    }
+    throw e;
+  }
+}
+
+/* Record the owner's email on the book (handy for support/lookup).
+   Allowed by the rules because the caller is the owner. Best-effort. */
+export async function markOwnerEmail(bookId) {
+  const u = auth.currentUser;
+  if (!u || !u.email) return;
+  try { await updateDoc(doc(db, `books/${bookId}`), { ownerEmail: u.email.toLowerCase() }); } catch (_) {}
+}
+
+/* Complete any ownership transfer left pending in this browser.
+   Safe to call on every dashboard load. Returns true if one finished. */
+export async function finishPendingClaim() {
+  let pending = null;
+  try { pending = JSON.parse(localStorage.getItem(PENDING_CLAIM) || "null"); } catch (_) {}
+  if (!pending || !pending.bookId || !pending.token) return false;
+  const u = auth.currentUser;
+  if (!u || u.isAnonymous) return false;   // need a real account to receive the book
+  try {
+    await fnFinishClaim({ bookId: pending.bookId, token: pending.token });
+    try { localStorage.removeItem(PENDING_CLAIM); } catch (_) {}
+    return true;
+  } catch (e) {
+    // a dead/expired/denied claim is unrecoverable — stop retrying it
+    const c = (e && e.code) || "";
+    if (/deadline-exceeded|permission-denied|failed-precondition|not-found|invalid-argument/.test(c)) {
+      try { localStorage.removeItem(PENDING_CLAIM); } catch (_) {}
+    }
+    return false;
+  }
+}
+
+/* ---------- owner dashboard: list the books I own ---------- */
+export async function listMyBooks() {
+  const u = auth.currentUser;
+  if (!u || u.isAnonymous) return [];
+  const snap = await getDocs(query(collection(db, "books"), where("ownerUid", "==", u.uid)));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => ((b.createdAt && b.createdAt.toMillis && b.createdAt.toMillis()) || 0)
+                  - ((a.createdAt && a.createdAt.toMillis && a.createdAt.toMillis()) || 0));
 }
 
 /* ---------- read config ---------- */

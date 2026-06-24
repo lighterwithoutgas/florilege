@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/">
+<script>
+  const firebaseDomains = [
+    "graduation-abd07.web.app",
+    "graduation-abd07.firebaseapp.com"
+  ];
+
+  if (firebaseDomains.includes(window.location.hostname)) {
+    const canonicalUrl = new URL(window.location.href);
+    canonicalUrl.protocol = "https:";
+    canonicalUrl.hostname = "getflorilege.com";
+    canonicalUrl.port = "";
+
+    window.location.replace(canonicalUrl.toString());
+  }
+</script>
+<title>My Florilège books</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  .wrap { width:min(960px,100%); }
+  .site-bar { position:sticky; top:0; z-index:40; backdrop-filter:blur(8px);
+    background:rgba(251,248,241,.72); border-bottom:1px solid rgba(216,205,182,.6); }
+  .site-bar .inner { width:min(960px,92%); margin:0 auto; display:flex; align-items:center; justify-content:space-between; padding:.7rem 0; }
+  .site-bar .brand { display:flex; align-items:center; gap:.5rem; text-decoration:none; color:var(--ink); }
+  .site-bar .brand .mark { width:30px; height:30px; }
+  .site-bar .brand .name { font-family:var(--serif); font-weight:600; font-size:1.35rem; }
+  .site-bar .brand .name b { color:var(--carnation-2); }
+  .site-bar .nav { display:flex; align-items:center; gap:1.1rem; }
+  .site-bar a.link, .site-bar button.link { font-family:var(--serif); font-size:1rem; color:var(--ink-soft); text-decoration:none; background:none; border:none; cursor:pointer; }
+  .site-bar a.link:hover, .site-bar button.link:hover { color:var(--carnation); }
+
+  .head { text-align:center; margin:1.6rem 0 1.2rem; }
+  .head .flower { width:84px; margin:0 auto .3rem; }
+  .head h1 { font-family:var(--serif); font-weight:600; font-size:clamp(1.8rem,5vw,2.4rem); margin:.2rem 0; }
+  .head p { font-family:var(--body); color:var(--ink-soft); max-width:50ch; margin:.3rem auto; }
+
+  .gate { text-align:center; max-width:520px; margin:0 auto; }
+  .gate .flower { width:96px; margin:0 auto .4rem; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:1.2rem; }
+  .bk { padding:1.2rem; }
+  .bk .who { font-family:var(--serif); font-weight:600; font-size:1.35rem; color:var(--carnation-2); margin:0; }
+  .bk .meta { font-family:var(--serif); font-style:italic; color:var(--ink-soft); font-size:.9rem; margin:.15rem 0 .8rem; }
+  .badge { display:inline-block; font-family:var(--body); font-size:.72rem; letter-spacing:.06em; text-transform:uppercase;
+    border-radius:999px; padding:.15em .7em; vertical-align:middle; margin-inline-start:.4em; }
+  .badge.active { background:#E7F0E6; color:#3f6b3a; border:1px solid #cfe2cd; }
+  .badge.pending { background:#FBF1DD; color:#8a6a1e; border:1px solid #ecdcb6; }
+  .l { background:#fffdf7; border:1px solid var(--line); border-radius:6px; padding:.55rem .75rem; margin:.5rem 0; word-break:break-all; font-family:var(--body); font-size:.9rem; }
+  .l b { font-family:var(--serif); color:var(--leaf-deep); display:block; font-style:italic; margin-bottom:.15rem; font-size:.9rem; }
+  .l .copy { float:right; font-family:var(--serif); font-size:.78rem; cursor:pointer; color:var(--gold-deep); border:none; background:none; }
+  .keychip { display:inline-block; background:var(--blush); border-radius:6px; padding:.05em .45em; font-family:var(--serif); }
+  .bk .open { display:inline-block; margin-top:.5rem; font-family:var(--serif); color:var(--gold-deep); text-decoration:none; }
+  .bk .open:hover { color:var(--carnation); }
+  .none { font-family:var(--serif); font-style:italic; color:var(--ink-soft); text-align:center; }
+  .err { color:var(--carnation-2); font-family:var(--serif); font-style:italic; min-height:1.2em; text-align:center; }
+  .spin { font-family:var(--serif); font-style:italic; color:var(--ink-soft); text-align:center; }
+</style>
+</head>
+<body>
+<header class="site-bar">
+  <div class="inner">
+    <a class="brand" href="/"><span class="mark" id="barMark"></span><span class="name">Flori<b>lège</b></span></a>
+    <div class="nav">
+      <a class="link" href="/create">Make a book</a>
+      <button class="link" id="outBtn" type="button" hidden>Sign out</button>
+    </div>
+  </div>
+</header>
+
+<div class="stage" id="stage" style="align-items:flex-start; padding-top:1rem;">
+  <div class="wrap">
+    <div class="head">
+      <div class="flower" id="headFlower"></div>
+      <h1>My books</h1>
+      <p id="headSub">Every Florilège book you've saved to your account — in one place, on any device.</p>
+    </div>
+
+    <!-- SIGN-IN GATE -->
+    <div class="gate" id="gate" hidden>
+      <div class="sheet card">
+        <p style="font-family:var(--body);color:var(--ink-soft);margin:.2rem 0 1.1rem;">
+          Sign in with the Google account you used to save your books.</p>
+        <button class="btn btn--gold" id="googleBtn" type="button">Sign in with Google</button>
+        <div class="err" id="gateErr" style="margin-top:.8rem;"></div>
+      </div>
+    </div>
+
+    <!-- LOADING -->
+    <p class="spin" id="loading" hidden>Loading your books…</p>
+
+    <!-- BOOKS -->
+    <div class="grid" id="grid" hidden></div>
+    <p class="none" id="empty" hidden>No books saved to this account yet.
+       <br><a href="/create" style="color:var(--gold-deep);">Make one →</a></p>
+  </div>
+</div>
+
+<script type="module">
+import { startPetals, escapeHTML } from './assets/theme.js';
+import { flowerSVG } from './assets/flowers.js';
+import {
+  watchAuth, googleSignIn, signOut, isSignedInAccount,
+  finishPendingClaim, listMyBooks
+} from './assets/firebase-init.js';
+
+startPetals(8);
+document.getElementById('barMark').innerHTML = flowerSVG('carnation', { size:30 });
+document.getElementById('headFlower').innerHTML = flowerSVG('tulip', { size:84 });
+
+const gate   = document.getElementById('gate');
+const gateErr= document.getElementById('gateErr');
+const loading= document.getElementById('loading');
+const grid   = document.getElementById('grid');
+const empty  = document.getElementById('empty');
+const outBtn = document.getElementById('outBtn');
+let loaded = false;
+
+document.getElementById('googleBtn').addEventListener('click', async ()=>{
+  gateErr.textContent = '';
+  try { await googleSignIn(); }
+  catch(e){
+    const c = (e && e.code) || '';
+    if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') return;
+    gateErr.textContent = "Couldn't sign in just now. Please try again.";
+  }
+});
+outBtn.addEventListener('click', ()=> signOut().then(()=>location.reload()));
+
+function show(elsHidden) {
+  gate.hidden = !elsHidden.gate;
+  loading.hidden = !elsHidden.loading;
+  grid.hidden = !elsHidden.grid;
+  empty.hidden = !elsHidden.empty;
+  outBtn.hidden = !elsHidden.out;
+}
+
+watchAuth(async (user)=>{
+  if (!isSignedInAccount()) {            // signed out or anonymous
+    loaded = false;
+    show({ gate:true });
+    return;
+  }
+  if (loaded) return;                    // already rendered for this session
+  loaded = true;
+  show({ loading:true, out:true });
+  try { await finishPendingClaim(); }    // complete any hand-off from the success page
+  catch(_){}
+  let books = [];
+  try { books = await listMyBooks(); }
+  catch(e){ loading.hidden = true; gateErr.textContent=''; grid.hidden=true;
+            empty.hidden=false; empty.textContent='Could not load your books — please reload.'; return; }
+  render(books);
+});
+
+function render(books){
+  if (!books.length) { show({ empty:true, out:true }); return; }
+  show({ grid:true, out:true });
+  const base = location.origin;
+  grid.innerHTML = '';
+  for (const b of books){
+    let key = '';
+    try { key = localStorage.getItem('keepsake_key_'+b.id) || ''; } catch(_){}
+    const friend = `${base}/a/${b.id}`;
+    const book   = `${base}/b/${b.id}`;
+    const manage = `${base}/m/${b.id}`;
+    const active = b.status === 'active';
+    const recip = key
+      ? `For the recipient — key: <span class="keychip">${escapeHTML(key)}</span>`
+      : `For the recipient — plus the key you chose`;
+
+    const card = document.createElement('div');
+    card.className = 'sheet bk';
+    card.innerHTML = `
+      <p class="who">${escapeHTML(b.recipientName || 'A book')}<span class="badge ${active?'active':'pending'}">${active?'ready':'pending'}</span></p>
+      <p class="meta">${escapeHTML(b.major || (b.year ? ('Class of '+b.year) : ''))}</p>
+      ${active ? `
+        <div class="l"><button class="copy" data-c="${friend}">copy</button><b>Share with friends (to add pages)</b>${friend}</div>
+        <div class="l"><button class="copy" data-c="${book}">copy</button><b>${recip}</b>${book}</div>
+        ${b.hasManageKey ? `<div class="l"><button class="copy" data-c="${manage}">copy</button><b>For you — remove pages (your management key)</b>${manage}</div>` : ''}
+        <a class="open" href="/b/${b.id}">Open the book →</a>
+      ` : `<p class="meta">This book is still being confirmed. Refresh in a minute.</p>`}`;
+    grid.appendChild(card);
+  }
+  grid.querySelectorAll('.copy').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      navigator.clipboard.writeText(btn.dataset.c).then(()=>{ btn.textContent='copied'; setTimeout(()=>btn.textContent='copy',1500); });
+    });
+  });
+}
+</script>
+</body>
+</html>

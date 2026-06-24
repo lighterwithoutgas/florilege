@@ -40,6 +40,10 @@
   .keychip { display:inline-block; background:var(--blush); border-radius:6px; padding:.1em .5em; font-family:var(--serif); }
   .err { color:var(--carnation-2); font-family:var(--serif); font-style:italic; }
   .spin { font-family:var(--serif); font-style:italic; color:var(--ink-soft); }
+  .save { max-width:640px; margin:1.2rem auto 0; text-align:center; padding:1.2rem; }
+  .save h2 { font-family:var(--serif); font-weight:600; font-size:1.25rem; margin:.1rem 0 .3rem; }
+  .save p { font-family:var(--body); color:var(--ink-soft); font-size:.95rem; margin:0 0 .9rem; }
+  .save .note { font-family:var(--serif); font-style:italic; color:var(--leaf-deep); margin-top:.7rem; min-height:1.2em; }
 </style>
 </head>
 <body>
@@ -49,6 +53,12 @@
     <h1 id="title">Confirming your payment…</h1>
     <p class="sub" id="sub"><span class="spin">Just a moment while we finish your book.</span></p>
     <div class="sheet card links" id="links" hidden></div>
+    <div class="sheet card save" id="save" hidden>
+      <h2>Keep this book for good</h2>
+      <p>Save it to your account and you'll find it on any device — no need to hang onto this page or the email.</p>
+      <button class="btn btn--gold" id="saveBtn" type="button">Save to my account with Google</button>
+      <div class="note" id="saveNote"></div>
+    </div>
     <div class="err" id="err"></div>
   </div>
 </div>
@@ -56,7 +66,7 @@
 <script type="module">
 import { getBookId, startPetals } from './assets/theme.js';
 import { flowerSVG } from './assets/flowers.js';
-import { getBookConfig, ensureAnon } from './assets/firebase-init.js';
+import { getBookConfig, ensureAnon, saveBookToAccount } from './assets/firebase-init.js';
 
 startPetals(8);
 document.getElementById('flower').innerHTML = flowerSVG('tulip', { size:96 });
@@ -129,7 +139,29 @@ function showLinks(cfg) {
   });
   // keep the key in localStorage — it's hashed on the server and cannot be recovered,
   // so this is the only place the creator can look it up again.
+
+  // offer to save the book to a durable account (optional — never blocks anything)
+  document.getElementById('save').hidden = false;
 }
+
+const saveBtn = document.getElementById('saveBtn');
+const saveNote = document.getElementById('saveNote');
+saveBtn.addEventListener('click', async ()=>{
+  saveBtn.disabled = true; saveNote.textContent = 'Opening Google…';
+  try {
+    await saveBookToAccount(bookId);
+    saveNote.textContent = 'Saved! Taking you to your books…';
+    location.href = '/my';
+  } catch(e){
+    const c = (e && e.code) || '';
+    if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') {
+      saveNote.textContent = ''; // they backed out — no harm
+    } else {
+      saveNote.textContent = "Couldn't save it just now — your links above still work.";
+    }
+    saveBtn.disabled = false;
+  }
+});
 
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }

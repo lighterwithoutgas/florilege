@@ -14,7 +14,8 @@
       { "source": "/a/**", "destination": "/add.html" },
       { "source": "/b/**", "destination": "/book.html" },
       { "source": "/m/**", "destination": "/admin.html" },
-      { "source": "/s/**", "destination": "/success.html" }
+      { "source": "/s/**", "destination": "/success.html" },
+      { "source": "/my", "destination": "/my.html" }
     ]
   },
   "functions": {
