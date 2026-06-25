@@ -104,7 +104,7 @@
   <div class="wrap gate" id="gate">
     <div class="flower" id="gateFlower"></div>
     <h1 style="font-family:var(--serif);font-weight:600;font-size:2.2rem;">Make a Florilège book</h1>
-    <p style="font-family:var(--body);color:var(--ink-soft);max-width:46ch;margin:.4rem auto 1.4rem;">A little interactive book of messages, collected from friends and pressed around a flower the recipient loves. It's free — sign in with Google to make one (up to two books per account), yours to manage.</p>
+    <p style="font-family:var(--body);color:var(--ink-soft);max-width:46ch;margin:.4rem auto 1.4rem;">A little interactive book of messages, collected from friends and pressed around a flower the recipient loves. €5 a book — sign in with Google to make one, yours to manage.</p>
     <button class="btn btn--gold" id="googleBtn" type="button">Sign in with Google</button>
     <div class="err" id="gateErr" style="margin-top:.8rem;"></div>
   </div>
@@ -194,8 +194,8 @@
         </div>
 
         <div class="err" id="err"></div>
-        <button class="btn btn--gold" id="createBtn" type="button">Create the book — free</button>
-        <p class="hint" style="text-align:center;margin-top:.6rem;">Free — your Florilège book is created the moment you confirm.</p>
+        <button class="btn btn--gold" id="createBtn" type="button">Pay €5 &amp; create the book</button>
+        <p class="hint" style="text-align:center;margin-top:.6rem;">€5 — you'll be taken to a secure Stripe checkout. Your book is created the moment payment clears.</p>
       </div>
 
       <div class="preview-col">
@@ -349,8 +349,10 @@ render();
 
 // owner mode: /create?owner=THE_CODE lifts the 2-book cap for the site owner
 const ownerCode = new URLSearchParams(location.search).get('owner') || '';
-const BTN_LABEL = 'Create the book — free';
+const BTN_LABEL = 'Pay €5 & create the book';
 const createBtn = document.getElementById('createBtn');
+// Paid mode: the €5 charge is the throttle, so no per-account book cap.
+const PAID = true;
 const MAX_BOOKS = 2;
 
 const gateEl   = document.getElementById('gate');
@@ -380,25 +382,29 @@ watchAuth(async (user)=>{
     gateEl.hidden = false;
     return;
   }
-  // signed in with a real account — check how many books they already have
+  // signed in with a real account → straight into the wizard. In paid mode
+  // there's no per-account cap (the €5 charge is the throttle); the free-tier
+  // cap below only runs when PAID is false.
   gateEl.hidden = true;
-  let count = 0;
-  try { count = (await listMyBooks()).length; } catch(_){}
-  if (count >= MAX_BOOKS && !ownerCode) {
-    wizardEl.hidden = true;
-    gateEl.hidden = false;
-    gateErr.innerHTML = `You've already made your ${MAX_BOOKS} free books. ` +
-      `<a href="/my" style="color:var(--carnation);">See them in “My books” →</a>`;
-    googleBtn.style.display = 'none';
-    gateEl.querySelector('p').textContent = 'Florilège is free, with up to two books per account.';
-    return;
+  if (!PAID && !ownerCode) {
+    let count = 0;
+    try { count = (await listMyBooks()).length; } catch(_){}
+    if (count >= MAX_BOOKS) {
+      wizardEl.hidden = true;
+      gateEl.hidden = false;
+      gateErr.innerHTML = `You've already made your ${MAX_BOOKS} free books. ` +
+        `<a href="/my" style="color:var(--carnation);">See them in “My books” →</a>`;
+      googleBtn.style.display = 'none';
+      gateEl.querySelector('p').textContent = 'Florilège is free, with up to two books per account.';
+      return;
+    }
   }
   wizardEl.hidden = false;
 });
 
 if (ownerCode) {
   const hintEl = createBtn.nextElementSibling;
-  if (hintEl) hintEl.textContent = 'Owner mode — the two-book limit is lifted for this account.';
+  if (hintEl) hintEl.textContent = 'Owner mode — the €5 payment is skipped for this account.';
 }
 createBtn.addEventListener('click', async ()=>{
   const name = document.getElementById('f-name').value.trim();

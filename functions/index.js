@@ -45,7 +45,7 @@ const MAX_BOOKS_PER_USER = 2;
         (event: checkout.session.completed) and re-set the webhook secret
    Also flip the button label in create.html back to "Pay €5…".
    ============================================================ */
-const PAYMENTS_ENABLED = false;   // Florilège is free — books activate on creation.
+const PAYMENTS_ENABLED = true;   // €5/book — books activate only after Stripe confirms payment.
 
 /* Secret owner code — lets YOU create books for free.
    Visit /create?owner=THE_CODE and the payment step is skipped.
@@ -215,8 +215,9 @@ exports.startCheckout = onCall(PAYMENTS_ENABLED ? { secrets: [STRIPE_SECRET] } :
   if (provider === "anonymous" && !ownerFree)
     throw new HttpsError("unauthenticated", "Please sign in with Google to make a book.");
 
-  // free for everyone, but capped at MAX_BOOKS_PER_USER per account
-  if (!ownerFree) {
+  // free-tier abuse cap only applies when books are free. In paid mode the €5
+  // charge is the throttle, so paying customers may make as many as they like.
+  if (!ownerFree && !PAYMENTS_ENABLED) {
     const mine = await db.collection("books").where("ownerUid", "==", uid).get();
     if (mine.size >= MAX_BOOKS_PER_USER)
       throw new HttpsError("resource-exhausted",
