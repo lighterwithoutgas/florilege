@@ -77,7 +77,15 @@
 <script type="module">
 import { getBookId, applyAccent, startPetals, dirOf, escapeHTML } from './assets/theme.js';
 import { flowerSVG } from './assets/flowers.js';
-import { getBookConfig, redeemKeyAndSignIn, ensureAnon, watchAuth, signOut, listenPages, deletePage } from './assets/firebase-init.js';
+import {
+  readerGetBookConfig as getBookConfig,
+  readerRedeemKeyAndSignIn as redeemKeyAndSignIn,
+  readerEnsureAnon as ensureAnon,
+  readerWatchAuth as watchAuth,
+  readerSignOut as signOut,
+  readerListenPages as listenPages,
+  readerDeletePage as deletePage
+} from './assets/firebase-init.js';
 
 const bookId = getBookId();
 let cfg = null, items = [], opened = false;

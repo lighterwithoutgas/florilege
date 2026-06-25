@@ -87,7 +87,11 @@
 <script type="module">
 import { getBookId, applyAccent, startPetals, specimenPageHTML, wireVoice } from './assets/theme.js';
 import { flowerSVG } from './assets/flowers.js';
-import { getBookConfig, addSubmission, ensureAnon } from './assets/firebase-init.js';
+import {
+  readerGetBookConfig as getBookConfig,
+  readerAddSubmission as addSubmission,
+  readerEnsureAnon as ensureAnon
+} from './assets/firebase-init.js';
 
 const bookId = getBookId();
 const app = document.getElementById('app');

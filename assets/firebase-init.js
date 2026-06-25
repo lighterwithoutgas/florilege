@@ -3,7 +3,8 @@
    ============================================================ */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth, signInAnonymously, signInWithCustomToken, signInWithPopup,
+  getAuth, initializeAuth, browserSessionPersistence,
+  signInAnonymously, signInWithCustomToken, signInWithPopup,
   linkWithPopup, signInWithCredential,
   GoogleAuthProvider, onAuthStateChanged, signOut as fbSignOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -34,6 +35,26 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
+
+/* ---------- reader app: ephemeral, role-scoped sessions ----------
+   The default app above holds the OWNER's durable Google login. The
+   recipient (viewer token), caretaker (manage-key token) and friend
+   (anonymous) roles must NOT share that session — signing in as any of
+   them on the same auth instance would overwrite the owner's persisted
+   Google account in storage, so opening or contributing to a book would
+   silently sign the owner out and make "My books" come back empty.
+
+   A second Firebase app with its own auth fixes that: these role sign-ins
+   live here, fully isolated, and never touch the owner's session. Session
+   persistence keeps a recipient/caretaker signed in across reloads within
+   the same tab, but is separate storage from the default app. */
+const readerApp = initializeApp(firebaseConfig, "reader");
+const readerAuth = initializeAuth(readerApp, { persistence: browserSessionPersistence });
+const readerDb = getFirestore(readerApp);
+const readerStorage = getStorage(readerApp);
+const readerFunctions = getFunctions(readerApp);
+const readerFnRedeemKey  = httpsCallable(readerFunctions, "redeemKey");
+const readerFnDeletePage = httpsCallable(readerFunctions, "deletePage");
 const fnStartCheckout = httpsCallable(functions, "startCheckout");
 const fnRedeemKey     = httpsCallable(functions, "redeemKey");
 const fnDeletePage    = httpsCallable(functions, "deletePage");
@@ -257,4 +278,64 @@ export async function adminListBooks() {
 }
 export async function adminDeleteBook(bookId) {
   await fnAdminDelete({ bookId });
+}
+
+/* ============================================================
+   Reader-app variants — used ONLY by the recipient (/b), manage (/m)
+   and friend (/a) pages. Identical behaviour to the owner-scoped
+   helpers above, but bound to the isolated reader app so they never
+   clobber the owner's Google session. The tokens sent to Firestore /
+   Functions are the same, so authorization is unchanged.
+   ============================================================ */
+export function readerWatchAuth(cb) { return onAuthStateChanged(readerAuth, cb); }
+export function readerSignOut() { return fbSignOut(readerAuth); }
+export function readerEnsureAnon() {
+  return new Promise((resolve, reject) => {
+    const off = onAuthStateChanged(readerAuth, (u) => {
+      if (u) { off(); resolve(u); }
+      else signInAnonymously(readerAuth).catch(reject);
+    });
+  });
+}
+export async function readerRedeemKeyAndSignIn(bookId, role, key) {
+  const res = await readerFnRedeemKey({ bookId, role, key });
+  await signInWithCustomToken(readerAuth, res.data.token);
+}
+export async function readerGetBookConfig(bookId) {
+  const snap = await getDoc(doc(readerDb, `books/${bookId}`));
+  return snap.exists() ? { id: bookId, ...snap.data() } : null;
+}
+export async function readerGetPrivateContent(bookId) {
+  const snap = await getDoc(doc(readerDb, `books/${bookId}/private/content`));
+  return snap.exists() ? snap.data() : {};
+}
+export function readerListenPages(bookId, cb, onErr) {
+  const q = query(collection(readerDb, `books/${bookId}/messages`), orderBy("createdMs", "asc"));
+  return onSnapshot(q,
+    (snap) => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+    (err) => onErr && onErr(err));
+}
+export async function readerAddSubmission(bookId, { name, message, lang }, photoFile, voiceBlob) {
+  await readerEnsureAnon();
+  const uid = readerAuth.currentUser.uid;
+  const stamp = Date.now();
+  let photoURL = null, photoPath = null, voiceURL = null, voicePath = null;
+  if (photoFile) {
+    photoPath = `books/${bookId}/submissions/${uid}/${stamp}_photo`;
+    await uploadBytes(ref(readerStorage, photoPath), photoFile);
+    photoURL = await getDownloadURL(ref(readerStorage, photoPath));
+  }
+  if (voiceBlob) {
+    voicePath = `books/${bookId}/submissions/${uid}/${stamp}_voice.webm`;
+    await uploadBytes(ref(readerStorage, voicePath), voiceBlob);
+    voiceURL = await getDownloadURL(ref(readerStorage, voicePath));
+  }
+  await addDoc(collection(readerDb, `books/${bookId}/messages`), {
+    name: name || "", message: message || "", lang: lang || "en",
+    photoURL, photoPath, voiceURL, voicePath,
+    uid, createdAt: serverTimestamp(), createdMs: stamp,
+  });
+}
+export async function readerDeletePage(bookId, msgId) {
+  await readerFnDeletePage({ bookId, msgId });
 }

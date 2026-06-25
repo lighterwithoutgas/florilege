@@ -94,7 +94,14 @@
 import { getBookId, applyAccent, startPetals, toggleMusic, specimenPageHTML, wireVoice, escapeHTML } from './assets/theme.js';
 import { flowerSVG, FLOWERS, FLOWER_LORE } from './assets/flowers.js';
 import { emblemSVG } from './assets/majors.js';
-import { getBookConfig, getPrivateContent, listenPages, redeemKeyAndSignIn, ensureAnon, watchAuth } from './assets/firebase-init.js';
+import {
+  readerGetBookConfig as getBookConfig,
+  readerGetPrivateContent as getPrivateContent,
+  readerListenPages as listenPages,
+  readerRedeemKeyAndSignIn as redeemKeyAndSignIn,
+  readerEnsureAnon as ensureAnon,
+  readerWatchAuth as watchAuth
+} from './assets/firebase-init.js';
 
 // set the browser favicon to the major's emblem (each major gets its own)
 function setFavicon(){
