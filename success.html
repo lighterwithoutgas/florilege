@@ -112,6 +112,8 @@ async function keepTrying() {
 }
 
 function showLinks(cfg) {
+  // the book exists now — drop the saved create-page draft so a later visit starts fresh
+  try { localStorage.removeItem('florilege_draft'); } catch(_){}
   const base = location.origin;
   const friendUrl = `${base}/a/${bookId}`;
   const bookUrl = `${base}/b/${bookId}`;

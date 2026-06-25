@@ -29,6 +29,14 @@ service cloud.firestore {
              get(/databases/$(database)/documents/books/$(bookId)).data.status == 'active';
     }
 
+    // pending checkouts: a server-only holding area for a book's docs between
+    // "Pay" and a confirmed Stripe payment. Holds hashed keys + private content,
+    // so no client may ever read or write it (the Admin SDK in Functions bypasses
+    // these rules). The stripeWebhook deletes the doc once the book is created.
+    match /checkouts/{bookId} {
+      allow read, write: if false;
+    }
+
     match /books/{bookId} {
       // public theme doc: any signed-in user (incl. anonymous friends) may read,
       // so the submission page can render the right flower/name.

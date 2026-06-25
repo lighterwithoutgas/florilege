@@ -242,12 +242,17 @@ exports.startCheckout = onCall(PAYMENTS_ENABLED ? { secrets: [STRIPE_SECRET] } :
     return { url: `${base}/s/${bookId}`, bookId, free: true };
   }
 
-  // ----- PAID MODE: pending book + Stripe Checkout -----
-  const batch = db.batch();
-  batch.set(db.doc(`books/${bookId}`), publicDoc);
-  batch.set(db.doc(`books/${bookId}/private/content`), privateContent);
-  batch.set(db.doc(`books/${bookId}/private/keys`), keys);
-  await batch.commit();
+  // ----- PAID MODE: no book yet -----
+  // The book is NOT created on "Pay". We only stash the assembled docs in a
+  // server-only `checkouts/{bookId}` holding doc; the stripeWebhook turns that
+  // into the real book once payment completes. If the buyer abandons checkout,
+  // nothing is ever written to `books`, so no half-made book is left behind.
+  await db.doc(`checkouts/${bookId}`).set({
+    publicDoc,
+    privateContent,
+    keys,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
 
   const stripe = require("stripe")(STRIPE_SECRET.value());
   const session = await stripe.checkout.sessions.create({
@@ -293,11 +298,36 @@ if (PAYMENTS_ENABLED) {
         const bookId = session.metadata && session.metadata.bookId;
         if (bookId) {
           try {
-            await db.doc(`books/${bookId}`).set({
-              status: "active",
-              paidAt: admin.firestore.FieldValue.serverTimestamp(),
-              stripeSessionId: session.id,
-            }, { merge: true });
+            const bookRef = db.doc(`books/${bookId}`);
+            const existing = await bookRef.get();
+            if (existing.exists) {
+              // duplicate webhook delivery — just make sure it's marked paid.
+              await bookRef.set({
+                status: "active",
+                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                stripeSessionId: session.id,
+              }, { merge: true });
+            } else {
+              // first delivery — turn the stashed checkout into the real book.
+              const stashRef = db.doc(`checkouts/${bookId}`);
+              const stash = await stashRef.get();
+              if (!stash.exists) {
+                console.error("No checkout stash for paid session", bookId);
+                return res.json({ received: true });   // nothing to build; don't make Stripe retry forever
+              }
+              const { publicDoc, privateContent, keys } = stash.data();
+              const batch = db.batch();
+              batch.set(bookRef, {
+                ...publicDoc,
+                status: "active",
+                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                stripeSessionId: session.id,
+              });
+              batch.set(db.doc(`books/${bookId}/private/content`), privateContent);
+              batch.set(db.doc(`books/${bookId}/private/keys`), keys);
+              batch.delete(stashRef);
+              await batch.commit();
+            }
           } catch (e) {
             console.error("Failed to activate book", bookId, e);
             return res.status(500).send("activation failed");
