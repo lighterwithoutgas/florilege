@@ -168,14 +168,34 @@ export async function finishPendingClaim() {
 }
 
 /* ---------- owner dashboard: list the books I own ---------- */
+function sortBooks(docs) {
+  return docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => ((b.createdAt && b.createdAt.toMillis && b.createdAt.toMillis()) || 0)
+                  - ((a.createdAt && a.createdAt.toMillis && a.createdAt.toMillis()) || 0));
+}
+
 export async function listMyBooks() {
   const u = auth.currentUser;
   if (!u || u.isAnonymous) return [];
   const snap = await getDocs(query(collection(db, "books"), where("ownerUid", "==", u.uid)));
-  return snap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => ((b.createdAt && b.createdAt.toMillis && b.createdAt.toMillis()) || 0)
-                  - ((a.createdAt && a.createdAt.toMillis && a.createdAt.toMillis()) || 0));
+  return sortBooks(snap.docs);
+}
+
+/* Live version of listMyBooks: a one-shot getDocs run the instant the
+   dashboard mounts can race ahead of the auth token settling on the
+   Firestore channel (returns 0 books, filtered by the list rule, with no
+   error) or ahead of a just-written ownerUid — and the stale empty result
+   would otherwise stick until a full re-auth. A snapshot self-heals: it
+   re-delivers the moment the token propagates or a book lands/changes.
+   Returns the unsubscribe function. */
+export function listenMyBooks(cb, onErr) {
+  const u = auth.currentUser;
+  if (!u || u.isAnonymous) { cb([]); return () => {}; }
+  const q = query(collection(db, "books"), where("ownerUid", "==", u.uid));
+  return onSnapshot(q,
+    (snap) => cb(sortBooks(snap.docs)),
+    (err) => onErr && onErr(err));
 }
 
 /* ---------- read config ---------- */

@@ -154,7 +154,7 @@ import { flowerSVG } from './assets/flowers.js';
 import { emblemSVG } from './assets/majors.js';
 import {
   watchAuth, googleSignIn, signOut, isSignedInAccount,
-  finishPendingClaim, listMyBooks, deleteBook
+  finishPendingClaim, listenMyBooks, deleteBook
 } from './assets/firebase-init.js';
 
 startPetals(7);
@@ -169,7 +169,7 @@ const shelf   = document.getElementById('shelf');
 const empty   = document.getElementById('empty');
 const outBtn  = document.getElementById('outBtn');
 const headSub = document.getElementById('headSub');
-let loaded = false;
+let unsub = null;
 
 document.getElementById('googleBtn').addEventListener('click', async ()=>{
   gateErr.textContent = '';
@@ -189,15 +189,21 @@ function show({ gate:g, loading:l, shelf:s, empty:e, out }) {
 }
 
 watchAuth(async (user)=>{
-  if (!isSignedInAccount()) { loaded = false; show({ gate:true }); return; }
-  if (loaded) return;
-  loaded = true;
+  if (!isSignedInAccount()) {
+    if (unsub){ unsub(); unsub = null; }
+    show({ gate:true });
+    return;
+  }
+  if (unsub) return;                 // already subscribed for this account
   show({ loading:true, out:true });
   try { await finishPendingClaim(); } catch(_){}
-  let books = [];
-  try { books = await listMyBooks(); }
-  catch(e){ show({ empty:true, out:true }); empty.textContent = 'Could not load your books — please reload.'; return; }
-  render(books);
+  // live listener, not a one-shot read: a stale/empty first result (token
+  // still settling, or ownerUid just written) self-heals when the snapshot
+  // re-delivers — no sign-out/sign-in needed to see a freshly made book.
+  unsub = listenMyBooks(
+    (books)=> render(books),
+    ()=>{ show({ empty:true, out:true }); empty.textContent = 'Could not load your books — please reload.'; }
+  );
 });
 
 function coverHTML(b){
