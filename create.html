@@ -357,64 +357,34 @@ function render(){
 }
 render();
 
-/* ---------- draft persistence ----------
-   Stash the whole form locally on "Pay" so cancelling the Stripe checkout (or
-   hitting back) returns the buyer to a fully filled-in page instead of a blank
-   one. Cleared on the success page once the book is created. */
-const DRAFT_KEY = 'florilege_draft';
-function setVal(id, v){ if (v != null && v !== '') document.getElementById(id).value = v; }
-
-function saveDraft(config, key, manageKey){
-  try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({
-      v: 1, config, key, manageKey,
-      ui: { flower:state.flower, color:state.color, script:state.script,
-            majorKey:state.majorKey, majorCustom:customInput.value, symbol:state.symbol },
-    }));
-  } catch(_){}
+/* ---------- always start clean ----------
+   The create form must never carry old data over. Clear it on every load —
+   fresh visit, refresh, returning from a cancelled Stripe/PayPal checkout, or a
+   back/forward navigation. Browsers re-fill text inputs on reload and restore
+   the whole page from the bfcache on back/forward, so we reset the fields
+   ourselves instead of trusting the page to come up empty. */
+const DRAFT_KEY = 'florilege_draft';   // legacy key — purge any old saved draft
+function clearForm(){
+  ['f-name','f-year','f-intro','f-ded','f-close','f-key','f-managekey','f-major-custom','thenCap','nowCap']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  // cover / colour / script back to defaults
+  state.flower = 'carnation'; state.color = FLOWERS.carnation.default; state.script = 'arabic';
+  state.major = ''; state.majorKey = ''; state.symbol = 'flower';
+  customInput.style.display = 'none';
+  // photos
+  thenFile = nowFile = thenURL = nowURL = null;
+  ['thenThumb','nowThumb'].forEach(id => { const t = document.getElementById(id); if (t) t.hidden = true; });
+  document.getElementById('thenBtn').textContent = 'Choose photo';
+  document.getElementById('nowBtn').textContent  = 'Choose photo';
+  // pickers + preview
+  document.querySelectorAll('#symbolSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'flower'));
+  document.querySelectorAll('.fl-thumb').forEach(t => t.classList.toggle('sel', t.dataset.k === 'carnation'));
+  buildSwatches(); buildMajors(); render();
 }
-
-function restoreDraft(){
-  let raw = null; try { raw = localStorage.getItem(DRAFT_KEY); } catch(_){}
-  if (!raw) return;
-  let d; try { d = JSON.parse(raw); } catch(_){ return; }
-  if (!d || d.v !== 1) return;
-  const c = d.config || {}, ui = d.ui || {};
-  // text fields
-  setVal('f-name', c.recipientName); setVal('f-year', c.year);
-  setVal('f-intro', c.intro); setVal('f-ded', c.dedication); setVal('f-close', c.closing);
-  setVal('f-key', d.key); setVal('f-managekey', d.manageKey);
-  setVal('thenCap', c.thenCaption); setVal('nowCap', c.nowCaption);
-  setVal('f-major-custom', ui.majorCustom);
-  // cover / colour / script state
-  if (ui.flower) state.flower = ui.flower;
-  if (ui.color)  state.color  = ui.color;
-  if (ui.script) state.script = ui.script;
-  if (ui.symbol) state.symbol = ui.symbol;
-  state.majorKey = ui.majorKey || '';
-  if (state.majorKey === 'custom') customInput.style.display = 'block';
-  // reflect the restored selections in the pickers
-  document.querySelectorAll('.fl-thumb').forEach(t=>t.classList.toggle('sel', t.dataset.k===state.flower));
-  document.querySelectorAll('#symbolSeg button').forEach(b=>b.classList.toggle('on', b.dataset.v===state.symbol));
-  buildSwatches(); buildMajors();
-  // already-uploaded photos: keep their URLs so they aren't re-uploaded
-  if (c.thenPhotoURL){ thenURL = c.thenPhotoURL; showPhotoURL('thenThumb','thenImg','thenBtn', c.thenPhotoURL); }
-  if (c.nowPhotoURL){  nowURL  = c.nowPhotoURL;  showPhotoURL('nowThumb','nowImg','nowBtn',   c.nowPhotoURL); }
-  render();
-  const hint = document.getElementById('payHint');
-  if (hint) hint.textContent = 'Welcome back — your details were saved. ' + hint.textContent;
-}
-// Only bring the saved form back when the buyer is returning from an abandoned
-// payment (Stripe/PayPal cancel, or a failed PayPal capture). On any normal
-// load — fresh visit, refresh, or leaving the page and coming back — start
-// clean and drop the stale draft.
-{
-  const rp = new URLSearchParams(location.search);
-  const backFromPayment = rp.get('pay') === 'cancel' ||
-                          rp.get('paypal') === 'cancel' || rp.get('paypal') === 'failed';
-  if (backFromPayment) restoreDraft();
-  else { try { localStorage.removeItem(DRAFT_KEY); } catch(_){} }
-}
+function startClean(){ try { localStorage.removeItem(DRAFT_KEY); } catch(_){} clearForm(); }
+startClean();
+// back/forward can restore the old filled-in DOM from the bfcache — wipe it again
+window.addEventListener('pageshow', (e) => { if (e.persisted) startClean(); });
 
 // owner mode: /create?owner=THE_CODE lifts the 2-book cap for the site owner
 const ownerCode = new URLSearchParams(location.search).get('owner') || '';
@@ -528,9 +498,6 @@ async function collectConfig(active){
   if (config.thenPhotoURL) config.thenCaption = document.getElementById('thenCap').value.trim();
   if (config.nowPhotoURL)  config.nowCaption  = document.getElementById('nowCap').value.trim();
 
-  // Save everything locally BEFORE leaving for the payment page, so cancelling
-  // and returning here brings the whole filled-in form back.
-  saveDraft(config, key, manageKey);
   return { config, key, manageKey };
 }
 
