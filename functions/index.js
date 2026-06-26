@@ -81,6 +81,26 @@ const GMAIL_APP_PASSWORD = EMAIL_ENABLED ? defineSecret("GMAIL_APP_PASSWORD") : 
 const STRIPE_SECRET = defineSecret("STRIPE_SECRET");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
 
+/* ============================================================
+   PayPal — second payment option, redirect flow mirroring Stripe.
+   Keep PAYPAL_ENABLED false until the REST app credentials are in
+   Secret Manager:
+     firebase functions:secrets:set PAYPAL_CLIENT_ID
+     firebase functions:secrets:set PAYPAL_SECRET
+   then set PAYPAL_ENABLED = true and redeploy. Flip PAYPAL_LIVE = true
+   only when moving off sandbox. Also flip PAYPAL_ON in create.html so
+   the button shows. The book is still only created after capture.
+   ============================================================ */
+const PAYPAL_ENABLED = true;    // PayPal functions live (sandbox creds in Secret Manager)
+const PAYPAL_LIVE = false;      // false → sandbox API, true → live API
+const PAYPAL_CLIENT_ID = defineSecret("PAYPAL_CLIENT_ID");
+const PAYPAL_SECRET = defineSecret("PAYPAL_SECRET");
+function paypalBase() {
+  return PAYPAL_LIVE ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
+}
+/* stable 2nd-gen alias for our HTTP functions — used as the PayPal return_url */
+const FUNCTIONS_BASE = "https://us-central1-graduation-abd07.cloudfunctions.net";
+
 /* fallback site origin used if the client doesn't send a clean one */
 const FALLBACK_ORIGIN = "https://getflorilege.com";
 
@@ -193,6 +213,38 @@ function buildBookDocs(uid, config, viewerKey, caretakerKey) {
   return { publicDoc, privateContent, keys, recipientName };
 }
 
+/* turn a paid checkout stash into the real, active book. Idempotent — safe to
+   call more than once (duplicate Stripe webhooks, repeated PayPal return hits).
+   Returns "created" | "existed" | "no-stash". paymentMeta is merged onto the book. */
+async function materializeBook(bookId, paymentMeta) {
+  const bookRef = db.doc(`books/${bookId}`);
+  const existing = await bookRef.get();
+  if (existing.exists) {
+    await bookRef.set({
+      status: "active",
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...paymentMeta,
+    }, { merge: true });
+    return "existed";
+  }
+  const stashRef = db.doc(`checkouts/${bookId}`);
+  const stash = await stashRef.get();
+  if (!stash.exists) return "no-stash";
+  const { publicDoc, privateContent, keys } = stash.data();
+  const batch = db.batch();
+  batch.set(bookRef, {
+    ...publicDoc,
+    status: "active",
+    paidAt: admin.firestore.FieldValue.serverTimestamp(),
+    ...paymentMeta,
+  });
+  batch.set(db.doc(`books/${bookId}/private/content`), privateContent);
+  batch.set(db.doc(`books/${bookId}/private/keys`), keys);
+  batch.delete(stashRef);
+  await batch.commit();
+  return "created";
+}
+
 /* ============================================================
    startCheckout — anyone (anonymous auth). Creates a PENDING book
    and a Stripe Checkout session. data: { config, viewerKey, caretakerKey, origin }
@@ -298,35 +350,10 @@ if (PAYMENTS_ENABLED) {
         const bookId = session.metadata && session.metadata.bookId;
         if (bookId) {
           try {
-            const bookRef = db.doc(`books/${bookId}`);
-            const existing = await bookRef.get();
-            if (existing.exists) {
-              // duplicate webhook delivery — just make sure it's marked paid.
-              await bookRef.set({
-                status: "active",
-                paidAt: admin.firestore.FieldValue.serverTimestamp(),
-                stripeSessionId: session.id,
-              }, { merge: true });
-            } else {
-              // first delivery — turn the stashed checkout into the real book.
-              const stashRef = db.doc(`checkouts/${bookId}`);
-              const stash = await stashRef.get();
-              if (!stash.exists) {
-                console.error("No checkout stash for paid session", bookId);
-                return res.json({ received: true });   // nothing to build; don't make Stripe retry forever
-              }
-              const { publicDoc, privateContent, keys } = stash.data();
-              const batch = db.batch();
-              batch.set(bookRef, {
-                ...publicDoc,
-                status: "active",
-                paidAt: admin.firestore.FieldValue.serverTimestamp(),
-                stripeSessionId: session.id,
-              });
-              batch.set(db.doc(`books/${bookId}/private/content`), privateContent);
-              batch.set(db.doc(`books/${bookId}/private/keys`), keys);
-              batch.delete(stashRef);
-              await batch.commit();
+            const result = await materializeBook(bookId, { stripeSessionId: session.id });
+            if (result === "no-stash") {
+              console.error("No checkout stash for paid session", bookId);
+              return res.json({ received: true });   // nothing to build; don't make Stripe retry forever
             }
           } catch (e) {
             console.error("Failed to activate book", bookId, e);
@@ -342,6 +369,138 @@ if (PAYMENTS_ENABLED) {
         }
       }
       return res.json({ received: true });
+    }
+  );
+}
+
+/* ---------- PayPal helpers ---------- */
+async function paypalAccessToken() {
+  const creds = Buffer.from(`${PAYPAL_CLIENT_ID.value()}:${PAYPAL_SECRET.value()}`).toString("base64");
+  const r = await fetch(`${paypalBase()}/v1/oauth2/token`, {
+    method: "POST",
+    headers: { Authorization: `Basic ${creds}`, "Content-Type": "application/x-www-form-urlencoded" },
+    body: "grant_type=client_credentials",
+  });
+  if (!r.ok) throw new Error(`PayPal auth failed: ${r.status} ${await r.text()}`);
+  return (await r.json()).access_token;
+}
+
+/* ============================================================
+   startPaypalOrder — anyone (anonymous auth). Stashes the book in
+   checkouts/{bookId} (no book yet) and creates a PayPal order.
+   data: { config, viewerKey, caretakerKey, origin }
+   returns: { url, bookId }  (url = PayPal approval link)
+   ============================================================ */
+exports.startPaypalOrder = onCall(
+  PAYPAL_ENABLED ? { secrets: [PAYPAL_CLIENT_ID, PAYPAL_SECRET] } : {},
+  guard(async (request) => {
+    if (!PAYPAL_ENABLED) throw new HttpsError("failed-precondition", "PayPal isn't available yet.");
+    const uid = request.auth && request.auth.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Could not start. Please reload and try again.");
+
+    const { config = {}, viewerKey, caretakerKey, origin } = request.data || {};
+
+    // books may only be made from a real (Google) account, never an anonymous throwaway
+    const provider = request.auth.token && request.auth.token.firebase &&
+                     request.auth.token.firebase.sign_in_provider;
+    if (provider === "anonymous")
+      throw new HttpsError("unauthenticated", "Please sign in with Google to make a book.");
+
+    const { publicDoc, privateContent, keys, recipientName } =
+      buildBookDocs(uid, config, viewerKey, caretakerKey);
+    const bookId = newId();
+    const base = cleanOrigin(origin);
+
+    // stash only — the book is created after capture, same as the Stripe path
+    await db.doc(`checkouts/${bookId}`).set({
+      publicDoc, privateContent, keys,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const token = await paypalAccessToken();
+    const amount = (PRICE_CENTS / 100).toFixed(2);   // "5.00"
+    const r = await fetch(`${paypalBase()}/v2/checkout/orders`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        intent: "CAPTURE",
+        purchase_units: [{
+          custom_id: bookId,
+          description: `Florilège book for ${recipientName}`.slice(0, 127),
+          amount: { currency_code: CURRENCY.toUpperCase(), value: amount },
+        }],
+        application_context: {
+          brand_name: "Florilège",
+          user_action: "PAY_NOW",
+          shipping_preference: "NO_SHIPPING",
+          return_url: `${FUNCTIONS_BASE}/paypalCapture?bookId=${encodeURIComponent(bookId)}&origin=${encodeURIComponent(base)}`,
+          cancel_url: `${base}/create?paypal=cancel`,
+        },
+      }),
+    });
+    if (!r.ok) throw new HttpsError("internal", `PayPal order failed: ${r.status} ${await r.text()}`);
+    const order = await r.json();
+    const approve = (order.links || []).find((l) => l.rel === "approve");
+    if (!approve) throw new HttpsError("internal", "PayPal did not return an approval link.");
+    return { url: approve.href, bookId };
+  })
+);
+
+/* ============================================================
+   paypalCapture — PayPal redirects the buyer here (return_url) after
+   they approve. We capture the order, build the book from its stash,
+   then redirect the browser to the success page. GET, idempotent.
+   ============================================================ */
+if (PAYPAL_ENABLED) {
+  exports.paypalCapture = onRequest(
+    { secrets: EMAIL_ENABLED
+        ? [PAYPAL_CLIENT_ID, PAYPAL_SECRET, GMAIL_USER, GMAIL_APP_PASSWORD]
+        : [PAYPAL_CLIENT_ID, PAYPAL_SECRET] },
+    async (req, res) => {
+      const bookId = req.query.bookId;
+      const origin = cleanOrigin(req.query.origin);
+      const orderId = req.query.token;   // PayPal appends ?token=<orderId>&PayerID=...
+      const fail = (why) => {
+        console.error("PayPal capture problem:", why, "book", bookId);
+        return res.redirect(302, `${origin}/create?paypal=failed`);
+      };
+      if (!bookId || !orderId) return fail("missing bookId/token");
+      try {
+        const token = await paypalAccessToken();
+        const r = await fetch(`${paypalBase()}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        });
+        const data = await r.json().catch(() => ({}));
+        // an already-captured order returns 422 ORDER_ALREADY_CAPTURED — that's a
+        // repeat visit to the return URL, so treat it as success (idempotent).
+        const alreadyCaptured = r.status === 422 && JSON.stringify(data).includes("ORDER_ALREADY_CAPTURED");
+        if (!r.ok && !alreadyCaptured) return fail(`capture ${r.status} ${JSON.stringify(data)}`);
+
+        // verify the captured order is for this book and the right amount
+        let capId = null, payerEmail = null;
+        const pu = data.purchase_units && data.purchase_units[0];
+        if (pu) {
+          if (pu.custom_id && pu.custom_id !== bookId) return fail("custom_id mismatch");
+          const cap = pu.payments && pu.payments.captures && pu.payments.captures[0];
+          if (cap) {
+            capId = cap.id;
+            if (cap.amount && cap.amount.value !== (PRICE_CENTS / 100).toFixed(2)) return fail("amount mismatch");
+          }
+        }
+        if (data.payer && data.payer.email_address) payerEmail = data.payer.email_address;
+
+        const result = await materializeBook(bookId, { paypalOrderId: orderId, paypalCaptureId: capId });
+        if (result === "no-stash") return fail("no checkout stash");
+
+        if (EMAIL_ENABLED && payerEmail && result === "created") {
+          try { await sendLinksEmail(payerEmail, bookId); }
+          catch (e) { console.error("Failed to email links (paypal) for", bookId, e); }
+        }
+        return res.redirect(302, `${origin}/s/${encodeURIComponent(bookId)}`);
+      } catch (e) {
+        return fail(e && e.message ? e.message : String(e));
+      }
     }
   );
 }

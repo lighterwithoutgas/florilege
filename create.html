@@ -195,7 +195,8 @@
 
         <div class="err" id="err"></div>
         <button class="btn btn--gold" id="createBtn" type="button">Pay €5 &amp; create the book</button>
-        <p class="hint" style="text-align:center;margin-top:.6rem;">€5 — you'll be taken to a secure Stripe checkout. Your book is created the moment payment clears.</p>
+        <button id="paypalBtn" type="button" hidden style="width:100%;margin-top:.6rem;padding:.75rem 1rem;border-radius:8px;border:1px solid #e0a800;background:#ffc439;color:#003087;font-family:var(--serif);font-weight:600;font-size:1rem;cursor:pointer;">Pay €5 with PayPal</button>
+        <p class="hint" id="payHint" style="text-align:center;margin-top:.6rem;">€5 — you'll be taken to a secure checkout. Your book is created the moment payment clears.</p>
       </div>
 
       <div class="preview-col">
@@ -224,7 +225,7 @@
 import { FLOWERS, flowerSVG } from './assets/flowers.js';
 import { MAJORS, PALETTES, emblemSVG, emblemForMajor } from './assets/majors.js';
 import { startPetals } from './assets/theme.js';
-import { startCheckout, uploadPhoto, googleSignIn, watchAuth, isSignedInAccount, listMyBooks } from './assets/firebase-init.js';
+import { startCheckout, startPaypalOrder, uploadPhoto, googleSignIn, watchAuth, isSignedInAccount, listMyBooks } from './assets/firebase-init.js';
 
 startPetals(10);
 
@@ -400,7 +401,7 @@ function restoreDraft(){
   if (c.thenPhotoURL){ thenURL = c.thenPhotoURL; showPhotoURL('thenThumb','thenImg','thenBtn', c.thenPhotoURL); }
   if (c.nowPhotoURL){  nowURL  = c.nowPhotoURL;  showPhotoURL('nowThumb','nowImg','nowBtn',   c.nowPhotoURL); }
   render();
-  const hint = document.getElementById('createBtn').nextElementSibling;
+  const hint = document.getElementById('payHint');
   if (hint) hint.textContent = 'Welcome back — your details were saved. ' + hint.textContent;
 }
 restoreDraft();
@@ -460,53 +461,103 @@ watchAuth(async (user)=>{
   wizardEl.hidden = false;
 });
 
+// PayPal: flip to true (with PAYPAL_LIVE in functions/index.js) once PayPal is
+// live, to show the button to everyone. While sandbox, it stays hidden but can
+// be revealed for testing with /create?paypal=test.
+const PAYPAL_ON = false;
+const PAYPAL_LABEL = 'Pay €5 with PayPal';
+const paypalBtn = document.getElementById('paypalBtn');
+const paypalTest = new URLSearchParams(location.search).get('paypal') === 'test';
+// owners pay nothing (Stripe owner code) → no PayPal button for them
+if ((PAYPAL_ON || paypalTest) && !ownerCode) paypalBtn.hidden = false;
+
 if (ownerCode) {
-  const hintEl = createBtn.nextElementSibling;
+  const hintEl = document.getElementById('payHint');
   if (hintEl) hintEl.textContent = 'Owner mode — the €5 payment is skipped for this account.';
 }
-createBtn.addEventListener('click', async ()=>{
+
+function lockButtons(active, label){
+  createBtn.disabled = true; paypalBtn.disabled = true;
+  active.textContent = label;
+}
+function unlockButtons(){
+  createBtn.disabled = false; createBtn.textContent = BTN_LABEL;
+  paypalBtn.disabled = false; paypalBtn.textContent = PAYPAL_LABEL;
+}
+
+/* Validate the form, upload any photos, assemble the config, and save a local
+   draft. Returns { config, key, manageKey } or null (with the error shown).
+   Shared by both the Stripe and PayPal buttons. */
+async function collectConfig(active){
   const name = document.getElementById('f-name').value.trim();
   const key  = document.getElementById('f-key').value.trim();
   const manageKey = document.getElementById('f-managekey').value.trim();
   const err  = document.getElementById('err');
-  if (!name){ err.textContent='Add the recipient name.'; return; }
-  if (key.length<4){ err.textContent='The key needs at least 4 characters.'; return; }
-  if (manageKey && manageKey.length<4){ err.textContent='The management key needs at least 4 characters (or leave it empty).'; return; }
+  if (!name){ err.textContent='Add the recipient name.'; return null; }
+  if (key.length<4){ err.textContent='The key needs at least 4 characters.'; return null; }
+  if (manageKey && manageKey.length<4){ err.textContent='The management key needs at least 4 characters (or leave it empty).'; return null; }
   err.textContent='';
-  createBtn.disabled=true; createBtn.textContent='Creating…';
-  try {
-    const config = {
-      recipientName:name, nameScript:state.script, flower:state.flower, flowerColor:state.color,
-      major: currentMajorText(), coverSymbol: state.symbol, emblem: emblemForMajor(state.majorKey),
-      year: document.getElementById('f-year').value.trim() || String(new Date().getFullYear()),
-      intro: document.getElementById('f-intro').value.trim(),
-      dedication: document.getElementById('f-ded').value.trim(),
-      closing: document.getElementById('f-close').value.trim(),
-    };
-    if (thenFile || nowFile){
-      createBtn.textContent='Uploading photos…';
-      if (thenFile){ config.thenPhotoURL = await uploadPhoto(thenFile,'then'); }
-      if (nowFile){  config.nowPhotoURL  = await uploadPhoto(nowFile,'now');  }
-    }
-    // reuse photos already uploaded on an earlier attempt (restored from a draft)
-    if (!config.thenPhotoURL && thenURL) config.thenPhotoURL = thenURL;
-    if (!config.nowPhotoURL  && nowURL)  config.nowPhotoURL  = nowURL;
-    if (config.thenPhotoURL) config.thenCaption = document.getElementById('thenCap').value.trim();
-    if (config.nowPhotoURL)  config.nowCaption  = document.getElementById('nowCap').value.trim();
 
+  const config = {
+    recipientName:name, nameScript:state.script, flower:state.flower, flowerColor:state.color,
+    major: currentMajorText(), coverSymbol: state.symbol, emblem: emblemForMajor(state.majorKey),
+    year: document.getElementById('f-year').value.trim() || String(new Date().getFullYear()),
+    intro: document.getElementById('f-intro').value.trim(),
+    dedication: document.getElementById('f-ded').value.trim(),
+    closing: document.getElementById('f-close').value.trim(),
+  };
+  if (thenFile || nowFile){
+    active.textContent='Uploading photos…';
+    // upload once, then keep the URL so switching payment button won't re-upload
+    if (thenFile){ config.thenPhotoURL = await uploadPhoto(thenFile,'then'); thenURL = config.thenPhotoURL; thenFile = null; }
+    if (nowFile){  config.nowPhotoURL  = await uploadPhoto(nowFile,'now');   nowURL  = config.nowPhotoURL;  nowFile  = null; }
+  }
+  // reuse photos already uploaded on an earlier attempt (restored from a draft)
+  if (!config.thenPhotoURL && thenURL) config.thenPhotoURL = thenURL;
+  if (!config.nowPhotoURL  && nowURL)  config.nowPhotoURL  = nowURL;
+  if (config.thenPhotoURL) config.thenCaption = document.getElementById('thenCap').value.trim();
+  if (config.nowPhotoURL)  config.nowCaption  = document.getElementById('nowCap').value.trim();
+
+  // Save everything locally BEFORE leaving for the payment page, so cancelling
+  // and returning here brings the whole filled-in form back.
+  saveDraft(config, key, manageKey);
+  return { config, key, manageKey };
+}
+
+createBtn.addEventListener('click', async ()=>{
+  lockButtons(createBtn, 'Creating…');
+  try {
+    const p = await collectConfig(createBtn);
+    if (!p){ unlockButtons(); return; }
     createBtn.textContent = 'Taking you to checkout…';
-    // Save everything locally BEFORE leaving for Stripe, so cancelling the
-    // payment and returning here brings the whole filled-in form back.
-    saveDraft(config, key, manageKey);
-    const { url, bookId } = await startCheckout(config, key, manageKey || null, ownerCode);
-    // remember the key locally so the success page can remind the buyer of it
-    try { localStorage.setItem('keepsake_key_'+bookId, key); } catch(_){}
+    const { url, bookId } = await startCheckout(p.config, p.key, p.manageKey || null, ownerCode);
+    try { localStorage.setItem('keepsake_key_'+bookId, p.key); } catch(_){}
     window.location.href = url;
   } catch(e){
-    err.textContent = 'Could not create the book: '+(e.message||e.code||'error');
-    createBtn.disabled=false; createBtn.textContent=BTN_LABEL;
+    document.getElementById('err').textContent = 'Could not create the book: '+(e.message||e.code||'error');
+    unlockButtons();
   }
 });
+
+paypalBtn.addEventListener('click', async ()=>{
+  lockButtons(paypalBtn, 'Opening PayPal…');
+  try {
+    const p = await collectConfig(paypalBtn);
+    if (!p){ unlockButtons(); return; }
+    paypalBtn.textContent = 'Opening PayPal…';
+    const { url, bookId } = await startPaypalOrder(p.config, p.key, p.manageKey || null);
+    try { localStorage.setItem('keepsake_key_'+bookId, p.key); } catch(_){}
+    window.location.href = url;
+  } catch(e){
+    document.getElementById('err').textContent = 'Could not start PayPal: '+(e.message||e.code||'error');
+    unlockButtons();
+  }
+});
+
+// returning from a cancelled / failed PayPal checkout
+const paypalReturn = new URLSearchParams(location.search).get('paypal');
+if (paypalReturn === 'failed')
+  document.getElementById('err').textContent = "PayPal couldn't complete the payment — your details are saved, please try again.";
 </script>
 </body>
 </html>

@@ -56,6 +56,7 @@ const readerFunctions = getFunctions(readerApp);
 const readerFnRedeemKey  = httpsCallable(readerFunctions, "redeemKey");
 const readerFnDeletePage = httpsCallable(readerFunctions, "deletePage");
 const fnStartCheckout = httpsCallable(functions, "startCheckout");
+const fnStartPaypalOrder = httpsCallable(functions, "startPaypalOrder");
 const fnRedeemKey     = httpsCallable(functions, "redeemKey");
 const fnDeletePage    = httpsCallable(functions, "deletePage");
 const fnStartClaim    = httpsCallable(functions, "startClaim");
@@ -97,6 +98,18 @@ export async function startCheckout(config, viewerKey, caretakerKey, ownerCode) 
     caretakerKey: caretakerKey || null,
     origin: location.origin,
     ownerCode: ownerCode || null,
+  });
+  return res.data; // { url, bookId }
+}
+/* Same as startCheckout, but pays via PayPal. Returns { url, bookId } where
+   url is the PayPal approval link to redirect the buyer to. */
+export async function startPaypalOrder(config, viewerKey, caretakerKey) {
+  await ensureAnon();
+  const res = await fnStartPaypalOrder({
+    config,
+    viewerKey,
+    caretakerKey: caretakerKey || null,
+    origin: location.origin,
   });
   return res.data; // { url, bookId }
 }
