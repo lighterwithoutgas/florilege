@@ -319,7 +319,7 @@ exports.startCheckout = onCall(PAYMENTS_ENABLED ? { secrets: [STRIPE_SECRET] } :
     }],
     metadata: { bookId },
     success_url: `${base}/s/${bookId}`,
-    cancel_url: `${base}/create`,
+    cancel_url: `${base}/create?pay=cancel`,
   });
 
   return { url: session.url, bookId };

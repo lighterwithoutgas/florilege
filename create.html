@@ -404,7 +404,17 @@ function restoreDraft(){
   const hint = document.getElementById('payHint');
   if (hint) hint.textContent = 'Welcome back — your details were saved. ' + hint.textContent;
 }
-restoreDraft();
+// Only bring the saved form back when the buyer is returning from an abandoned
+// payment (Stripe/PayPal cancel, or a failed PayPal capture). On any normal
+// load — fresh visit, refresh, or leaving the page and coming back — start
+// clean and drop the stale draft.
+{
+  const rp = new URLSearchParams(location.search);
+  const backFromPayment = rp.get('pay') === 'cancel' ||
+                          rp.get('paypal') === 'cancel' || rp.get('paypal') === 'failed';
+  if (backFromPayment) restoreDraft();
+  else { try { localStorage.removeItem(DRAFT_KEY); } catch(_){} }
+}
 
 // owner mode: /create?owner=THE_CODE lifts the 2-book cap for the site owner
 const ownerCode = new URLSearchParams(location.search).get('owner') || '';
